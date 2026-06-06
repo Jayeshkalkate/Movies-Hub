@@ -16,6 +16,7 @@ Django settings for movieshub project.
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 # --------------------------------------------------
 # BASE DIRECTORY
@@ -28,17 +29,21 @@ load_dotenv()
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-change-this-in-production"
-)
+SECRET_KEY = os.getenv('SECRET_KEY')  # must be set in production
+# SECRET_KEY = os.getenv(
+#     "SECRET_KEY",
+#     "django-insecure-change-this-in-production"
+# )
 
-DEBUG = os.getenv("DEBUG", "True") == "True"
+# DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# ALLOWED_HOSTS = [
+#     "127.0.0.1",
+#     "localhost",
+# ]
 
 # --------------------------------------------------
 # APPLICATIONS
@@ -70,6 +75,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'movieshub.urls'
@@ -97,11 +103,18 @@ WSGI_APPLICATION = 'movieshub.wsgi.application'
 # --------------------------------------------------
 # DATABASE
 # --------------------------------------------------
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    "default": dj_database_url.parse(
+        os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True,
+    )
 }
 
 # --------------------------------------------------
@@ -208,8 +221,8 @@ STORAGES = {
     },
 }
 
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
-
+# STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # --------------------------------------------------
 # DEFAULT PRIMARY KEY
 # --------------------------------------------------

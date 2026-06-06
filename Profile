@@ -1,0 +1,2 @@
+web: gunicorn movieshub.wsgi
+bot: python manage.py runbot

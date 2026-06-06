@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: movieshub
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn movieshub.wsgi
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: movieshub-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        value: movieshub.onrender.com
+      # ... other AWS / Telegram variables (set manually in dashboard)
+    databases:
+      - name: movieshub-db
+        databaseName: movieshub
+        user: movieshub
+
+  - type: cron
+    name: set-webhook
+    schedule: "0 0 * * *"   # once a day, or just run manually
+    buildCommand: ""
+    startCommand: python manage.py set_webhook
