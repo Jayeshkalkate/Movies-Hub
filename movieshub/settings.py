@@ -35,10 +35,13 @@ SECRET_KEY = os.getenv('SECRET_KEY')  # must be set in production
 #     "django-insecure-change-this-in-production"
 # )
 
-# DEBUG = os.getenv("DEBUG", "True") == "True"
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'movies-hub-6dhp.onrender.com',
+] + os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 # ALLOWED_HOSTS = [
 #     "127.0.0.1",
