@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Checking Verification{% endblock %}
+{% block content %}
+<div class="text-center">
+    <h3>Checking your Telegram membership...</h3>
+    <p>Please wait a moment.</p>
+    <div class="spinner-border text-primary" role="status"></div>
+    <meta http-equiv="refresh" content="3; url={% url 'video_list' %}">
+</div>
+{% endblock %}

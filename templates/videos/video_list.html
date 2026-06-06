@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Movie Library | MovieHub{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Movie Library</h1>
+
+{% if movies %}
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
+        {% for movie in movies %}
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+
+                    {% if movie.poster %}
+                        <img src="{{ movie.poster.url }}"
+                             class="card-img-top"
+                             alt="{{ movie.title }}"
+                             style="height: 200px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center"
+                             style="height: 200px;">
+                            🎬 No Poster
+                        </div>
+                    {% endif %}
+
+                    <div class="card-body">
+                        <h5 class="card-title">{{ movie.title }}</h5>
+
+                        <p class="card-text text-muted small">
+                            {{ movie.description|truncatewords:15|default:"No description" }}
+                        </p>
+
+                        {% if movie.category %}
+                            <span class="badge bg-secondary">
+                                {{ movie.category.name }}
+                            </span>
+                        {% endif %}
+
+                        {% if movie.year %}
+                            <span class="badge bg-info">
+                                {{ movie.year }}
+                            </span>
+                        {% endif %}
+
+                        {% if movie.quality %}
+                            <span class="badge bg-dark">
+                                {{ movie.quality }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer bg-white">
+                        <small class="text-muted">
+                            Added: {{ movie.created_at|date:"M d, Y" }}
+                        </small>
+                    </div>
+
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        No movies available yet. Check back later!
+    </div>
+{% endif %}
+{% endblock %}

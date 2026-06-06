@@ -1,0 +1,137 @@
+# Create your views here.
+
+from django.shortcuts import render, redirect
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .models import Video
+from .forms import CustomUserCreationForm, CustomUserChangeForm
+from django.contrib.admin.views.decorators import staff_member_required
+from .forms import CategoryForm
+from .models import Category
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+from .models import MembershipVerification
+from .telegram_utils import generate_verification_code
+from django.http import JsonResponse
+from .telegram_utils import check_telegram_membership
+from django.conf import settings
+
+def home(request):
+    return render(request, 'home/home.html')      # note the 'home/' prefix
+
+def about(request):
+    return render(request, 'home/about.html')
+
+def contact(request):
+    return render(request, 'home/contact.html')
+
+def register(request):
+    if request.method == 'POST':
+        form = CustomUserCreationForm(request.POST)
+
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, 'Registration successful!')
+            return redirect('home')
+    else:
+        form = CustomUserCreationForm()
+
+    return render(request, 'accounts/register.html', {'form': form})
+
+
+@login_required
+def profile(request):
+    return render(request, 'accounts/profile.html')
+
+
+@login_required
+def edit_profile(request):
+    if request.method == 'POST':
+        form = CustomUserChangeForm(
+            request.POST,
+            instance=request.user
+        )
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Profile updated successfully.')
+            return redirect('profile')
+
+    else:
+        form = CustomUserChangeForm(instance=request.user)
+
+    return render(
+        request,
+        'accounts/edit_profile.html',
+        {'form': form}
+    )
+    
+from .models import TelegramMovie   # add at the top
+
+@login_required
+def video_list(request):
+    # Redirect to verification page if not verified
+    verification = get_object_or_404(MembershipVerification, user=request.user)
+    if not verification.membership_status:
+        messages.warning(request, 'You must verify your Telegram membership to watch videos.')
+        return redirect('verify_telegram')
+
+    # Show Telegram movies (indexed from channels)
+    movies = TelegramMovie.objects.select_related('category', 'channel').all().order_by('-created_at')
+    return render(request, 'videos/video_list.html', {'movies': movies})
+
+@staff_member_required
+def add_category(request):
+    if request.method == 'POST':
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Category "{form.cleaned_data["name"]}" added successfully!')
+            return redirect('add_category')  # stay on same page to add more
+    else:
+        form = CategoryForm()
+    
+    categories = Category.objects.all().order_by('name')
+    return render(request, 'categories/add_category.html', {'form': form, 'categories': categories})
+
+
+@login_required
+def verify_telegram(request):
+    verification, created = MembershipVerification.objects.get_or_create(user=request.user)
+    
+    if verification.membership_status:
+        messages.info(request, 'You are already verified!')
+        return redirect('video_list')
+    
+    code = generate_verification_code(request.user)
+    bot_username = settings.TELEGRAM_BOT_USERNAME
+    telegram_deep_link = f"https://t.me/{bot_username}?start=verify_{code}"
+    
+    return render(request, 'telegram/verify.html', {
+        'telegram_deep_link': telegram_deep_link,
+        'channel_link': settings.TELEGRAM_CHANNEL_ID,
+        'is_verified': verification.membership_status,
+    })
+    
+@login_required
+def check_verification(request):
+    verification = get_object_or_404(MembershipVerification, user=request.user)
+    
+    # If already verified, redirect to videos
+    if verification.membership_status:
+        messages.success(request, 'You are already verified! Enjoy the videos.')
+        return redirect('video_list')
+    
+    # For AJAX polling (optional)
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'verified': verification.membership_status})
+    
+    # # For manual check
+    # return render(request, 'telegram/check_status.html', {'verified': verification.membership_status})
+     
+    # For manual check – just redirect back to verification page
+    messages.warning(request, 'You are not verified yet. Please join the Telegram channel and verify.')
+    return redirect('verify_telegram')
+
