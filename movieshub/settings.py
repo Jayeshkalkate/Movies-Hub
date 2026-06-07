@@ -29,11 +29,7 @@ load_dotenv()
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
-SECRET_KEY = os.getenv('SECRET_KEY')  # must be set in production
-# SECRET_KEY = os.getenv(
-#     "SECRET_KEY",
-#     "django-insecure-change-this-in-production"
-# )
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
@@ -42,11 +38,6 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'movies-hub-6dhp.onrender.com',
 ] + os.environ.get('ALLOWED_HOSTS', '').split(',')
-
-# ALLOWED_HOSTS = [
-#     "127.0.0.1",
-#     "localhost",
-# ]
 
 # --------------------------------------------------
 # APPLICATIONS
@@ -72,13 +63,13 @@ INSTALLED_APPS = [
 # --------------------------------------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'movieshub.urls'
@@ -103,15 +94,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'movieshub.wsgi.application'
 
-# --------------------------------------------------
-# DATABASE
-# --------------------------------------------------
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+
 DATABASES = {
     "default": dj_database_url.parse(
         os.getenv("DATABASE_URL"),
@@ -183,10 +166,6 @@ AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = False
 AWS_S3_FILE_OVERWRITE = False
 
-# AWS_S3_CUSTOM_DOMAIN = (
-#     f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
-# )
-
 AWS_S3_CUSTOM_DOMAIN = (
     f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
 )
@@ -195,16 +174,6 @@ AWS_S3_CUSTOM_DOMAIN = (
 # MEDIA FILES (VIDEOS, THUMBNAILS, ETC.)
 # --------------------------------------------------
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
-
-# Django 4.2+ Storage Settings
-# STORAGES = {
-#     "default": {
-#         "BACKEND": "storages.backends.s3.S3Storage",
-#     },
-#     "staticfiles": {
-#         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-#     },
-# }
 
 # --------------------------------------------------
 # DJANGO 6 STORAGE SETTINGS
@@ -224,7 +193,6 @@ STORAGES = {
     },
 }
 
-# STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # --------------------------------------------------
 # DEFAULT PRIMARY KEY

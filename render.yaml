@@ -2,8 +2,8 @@ services:
   - type: web
     name: movieshub
     runtime: python
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: gunicorn movieshub.wsgi
+    buildCommand: pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput
+    startCommand: gunicorn movieshub.wsgi:application
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -14,7 +14,7 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        value: movieshub.onrender.com
+        value: movies-hub-6dhp.onrender.com
       # ... other AWS / Telegram variables (set manually in dashboard)
     databases:
       - name: movieshub-db
