@@ -260,36 +260,36 @@ CACHES = {
 # LOGGING
 # --------------------------------------------------
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "INFO",
-        },
-    "loggers": {
-        "django.security": {
-            "handlers": ["console"],
-            "level": "WARNING",
-            "propagate": False,
-            },
-        "telegram": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-            },
-        "coremovieshub": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-            },
-        },
-    },
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "handlers": {
+#         "console": {
+#             "class": "logging.StreamHandler",
+#         },
+#     },
+#     "root": {
+#         "handlers": ["console"],
+#         "level": "INFO",
+#         },
+#     "loggers": {
+#         "django.security": {
+#             "handlers": ["console"],
+#             "level": "WARNING",
+#             "propagate": False,
+#             },
+#         "telegram": {
+#             "handlers": ["console"],
+#             "level": "INFO",
+#             "propagate": False,
+#             },
+#         "coremovieshub": {
+#             "handlers": ["console"],
+#             "level": "INFO",
+#             "propagate": False,
+#             },
+#         },
+#     },
 
 # --------------------------------------------------
 # TELEGRAM BOT
