@@ -16,9 +16,125 @@ from .telegram_utils import generate_verification_code
 from django.http import JsonResponse
 from .telegram_utils import check_telegram_membership
 from django.conf import settings
+from .models import TelegramMovie
+from django.db.models import Count
+from .models import (
+    TelegramMovie,
+    TelegramChannel,
+    MembershipVerification,
+    Category
+)
 
+@staff_member_required
+def admin_dashboard(request):
+
+    total_movies = TelegramMovie.objects.count()
+
+    total_categories = Category.objects.count()
+
+    total_channels = TelegramChannel.objects.count()
+
+    verified_users = MembershipVerification.objects.filter(
+        membership_status=True
+    ).count()
+
+    context = {
+        "total_movies": total_movies,
+        "total_categories": total_categories,
+        "total_channels": total_channels,
+        "verified_users": verified_users,
+    }
+
+    return render(
+        request,
+        "dashboard/admin_dashboard.html",
+        context
+    )
+    
+@login_required
+def movie_detail(request, movie_id):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    movie.views += 1
+    movie.save()
+
+    return render(
+        request,
+        "movies/movie_detail.html",
+        {
+            "movie": movie
+        }
+    )
+    
+@login_required
+def category_movies(request, slug):
+
+    category = get_object_or_404(
+        Category,
+        slug=slug
+    )
+
+    movies = TelegramMovie.objects.filter(
+        category=category
+    )
+
+    return render(
+        request,
+        "movies/category_movies.html",
+        {
+            "category": category,
+            "movies": movies
+        }
+    )
+    
+@login_required
+def search_movies(request):
+    query = request.GET.get("q", "")
+    
+    movies = TelegramMovie.objects.none()
+
+    if query:
+        movies = TelegramMovie.objects.filter(
+            title__icontains=query
+        ).select_related(
+            "category",
+            "channel"
+        )
+
+    return render(
+        request,
+        "movies/search_results.html",
+        {
+            "query": query,
+            "movies": movies
+        }
+    )
+    
 def home(request):
-    return render(request, 'home/home.html')      # note the 'home/' prefix
+
+    latest_movies = TelegramMovie.objects.order_by(
+        "-created_at"
+    )[:12]
+
+    featured_movies = TelegramMovie.objects.filter(
+        is_featured=True
+    )[:8]
+
+    categories = Category.objects.all()
+
+    return render(
+        request,
+        "home/home.html",
+        {
+            "latest_movies": latest_movies,
+            "featured_movies": featured_movies,
+            "categories": categories,
+        }
+    )
 
 def about(request):
     return render(request, 'home/about.html')

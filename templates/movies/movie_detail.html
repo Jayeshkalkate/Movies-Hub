@@ -1,0 +1,26 @@
+<h1>{{ movie.title }}</h1>
+
+<p>
+Category:
+{{ movie.category }}
+</p>
+
+<p>
+Year:
+{{ movie.year }}
+</p>
+
+<p>
+Quality:
+{{ movie.quality }}
+</p>
+
+{% if movie.poster %}
+<img src="{{ movie.poster.url }}" width="250">
+{% endif %}
+
+{% if movie.telegram_message_link %}
+<a href="{{ movie.telegram_message_link }}">
+    Watch on Telegram
+</a>
+{% endif %}

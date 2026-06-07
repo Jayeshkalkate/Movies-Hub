@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+    <h2 class="mb-4">
+        Admin Dashboard
+    </h2>
+
+    <div class="row">
+
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h4>Total Movies</h4>
+                <h2>{{ total_movies }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h4>Categories</h4>
+                <h2>{{ total_categories }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h4>Channels</h4>
+                <h2>{{ total_channels }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h4>Verified Users</h4>
+                <h2>{{ verified_users }}</h2>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

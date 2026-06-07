@@ -14,14 +14,35 @@ class CustomUser(AbstractUser):
 # =====================================================
 
 class Category(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(unique=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(
+        max_length=100,
+        unique=True
+    )
+
+    slug = models.SlugField(
+        unique=True,
+        blank=True
+    )
+
+    description = models.TextField(
+        blank=True
+    )
+
+    icon = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Emoji icon"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
 
     def save(self, *args, **kwargs):
         if not self.slug:
             from django.utils.text import slugify
             self.slug = slugify(self.name)
+
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -128,8 +149,22 @@ class TelegramChannel(models.Model):
 # =====================================================
 
 class TelegramMovie(models.Model):
+
+    CONTENT_TYPES = (
+        ("movie", "Movie"),
+        ("series", "Series"),
+        ("anime", "Anime"),
+        ("documentary", "Documentary"),
+    )
+
     title = models.CharField(
         max_length=300
+    )
+
+    content_type = models.CharField(
+        max_length=20,
+        choices=CONTENT_TYPES,
+        default="movie"
     )
 
     category = models.ForeignKey(
@@ -148,6 +183,11 @@ class TelegramMovie(models.Model):
     telegram_message_id = models.BigIntegerField()
 
     telegram_file_id = models.TextField()
+
+    telegram_message_link = models.URLField(
+        blank=True,
+        null=True
+    )
 
     year = models.IntegerField(
         null=True,
@@ -174,6 +214,18 @@ class TelegramMovie(models.Model):
         null=True
     )
 
+    views = models.PositiveIntegerField(
+        default=0
+    )
+
+    downloads = models.PositiveIntegerField(
+        default=0
+    )
+
+    is_featured = models.BooleanField(
+        default=False
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )
@@ -183,3 +235,4 @@ class TelegramMovie(models.Model):
 
     def __str__(self):
         return self.title
+    

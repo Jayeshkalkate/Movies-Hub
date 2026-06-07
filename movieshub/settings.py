@@ -95,14 +95,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'movieshub.wsgi.application'
 
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        os.getenv("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True,
-    )
-}
+# --------------------------------------------------
+# DATABASE SETUP
+# --------------------------------------------------
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+    
+    
 # --------------------------------------------------
 # CUSTOM USER MODEL
 # --------------------------------------------------
@@ -183,7 +197,8 @@ STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
         "OPTIONS": {
-            "default_acl": "public-read",
+            # "default_acl": "public-read",
+            "default_acl": None,
             "querystring_auth": False,
             "file_overwrite": False,
         },
@@ -211,4 +226,4 @@ LOGIN_URL = 'login'
 TELEGRAM_ADMIN_IDS = [
     1390641335,  # Your Telegram User ID
 ]
-
+MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID")

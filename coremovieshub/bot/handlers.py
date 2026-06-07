@@ -134,6 +134,7 @@ def save_movie(
     channel,
     message_id,
     file_id,
+    message_link,
     year,
     quality
 ):
@@ -143,10 +144,11 @@ def save_movie(
         channel=channel,
         telegram_message_id=message_id,
         telegram_file_id=file_id,
+        telegram_message_link=message_link,
         year=year,
         quality=quality,
     )
-
+    
 
 async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -277,16 +279,28 @@ async def video_received(
         caption=caption,
         supports_streaming=True
     )
+    
+    chat_link_part = target_channel.chat_id
+    
+    if chat_link_part.startswith("-100"):
+        chat_link_part = chat_link_part[4:]
+        
+    message_link = (
+            f"https://t.me/c/"
+            f"{chat_link_part}/"
+            f"{sent.message_id}"
+            )
 
     await save_movie(
-        title=context.user_data["title"],
-        category=category,
-        channel=target_channel,
-        message_id=sent.message_id,
-        file_id=video.file_id,
-        year=context.user_data["year"],
-        quality=context.user_data["quality"]
-    )
+    title=context.user_data["title"],
+    category=category,
+    channel=target_channel,
+    message_id=sent.message_id,
+    file_id=video.file_id,
+    message_link=message_link,
+    year=context.user_data["year"],
+    quality=context.user_data["quality"]
+)
 
     await update.message.reply_text(
         f"✅ Movie uploaded successfully!\n\n"

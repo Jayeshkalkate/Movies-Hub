@@ -30,4 +30,26 @@ path('videos/', views.video_list, name='video_list'),
 path('categories/add/', views.add_category, name='add_category'),
 path('verify/', views.verify_telegram, name='verify_telegram'),
 path('check-verification/', views.check_verification, name='check_verification'),
+path(
+    "search/",
+    views.search_movies,
+    name="search_movies"
+),
+
+path(
+    "category/<slug:slug>/",
+    views.category_movies,
+    name="category_movies"
+),
+
+path(
+    "movie/<int:movie_id>/",
+    views.movie_detail,
+    name="movie_detail"
+),
+path(
+    "dashboard/",
+    views.admin_dashboard,
+    name="admin_dashboard"
+),
 ]

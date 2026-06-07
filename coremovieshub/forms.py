@@ -17,7 +17,7 @@ class CustomUserChangeForm(UserChangeForm):
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ['name']
+        fields = ['name', 'description', 'icon']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Action, Comedy, Drama'}),
         }
