@@ -26,6 +26,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables
 load_dotenv()
 
+DEBUG = os.environ.get("DEBUG", "False") == "True"
+
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
@@ -39,7 +41,6 @@ if not SECRET_KEY and not DEBUG:
 if not SECRET_KEY:
     SECRET_KEY = "django-insecure-dev-only-key"
     
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -212,12 +213,6 @@ MEDIA_URL = (
 )
 
 # --------------------------------------------------
-# BASE URL
-# --------------------------------------------------
-
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
-
-# --------------------------------------------------
 # DJANGO 6 STORAGE SETTINGS
 # --------------------------------------------------
 
@@ -343,6 +338,12 @@ SECURE_PROXY_SSL_HEADER = (
     "https",
 )
 
+# --------------------------------------------------
+# BASE URL
+# --------------------------------------------------
+
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+
 # Cookie Security
 SESSION_COOKIE_HTTPONLY = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -364,6 +365,8 @@ if not DEBUG and not MAIN_CHANNEL_ID:
     raise ValueError(
         "MAIN_CHANNEL_ID environment variable is required."
     )
+
+AUTH_USER_MODEL = "coremovieshub.CustomUser"
 
 # --------------------------------------------------
 # Security Improvements

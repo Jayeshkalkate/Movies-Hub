@@ -2,7 +2,7 @@
 import logging
 
 from asgiref.sync import async_to_sync
-
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
@@ -80,6 +80,10 @@ def get_bot_app():
 
 @csrf_exempt
 def telegram_webhook(request):
+    """
+    Telegram webhook endpoint.
+    """
+
     if request.method != "POST":
         return JsonResponse(
             {"error": "Method not allowed"},
@@ -101,42 +105,62 @@ def telegram_webhook(request):
         )
 
     try:
-        data = json.loads(request.body)
+        body = request.body.decode("utf-8")
+
+        data = json.loads(body)
 
         app = get_bot_app()
+
+        if app is None:
+            logger.error(
+                "Telegram bot application not initialized."
+            )
+
+            return JsonResponse(
+                {"error": "Bot unavailable"},
+                status=503
+            )
 
         update = Update.de_json(
             data,
             app.bot
         )
 
-        # Run async update processor
-        asyncio.run(
-            app.process_update(update)
+        logger.info(
+            "Received Telegram update: %s",
+            update.update_id
         )
 
+        # Process update
+        async_to_sync(
+            app.process_update
+        )(update)
+
         return JsonResponse(
-            {"status": "ok"}
+            {"status": "ok"},
+            status=200
         )
 
     except json.JSONDecodeError:
         logger.exception(
-            "Invalid JSON received from webhook."
+            "Invalid JSON received from Telegram."
         )
+
         return JsonResponse(
             {"error": "Invalid JSON"},
             status=400
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception(
             "Webhook processing failed."
         )
+
         return JsonResponse(
-            {"error": str(e)},
+            {"error": "Internal server error"},
             status=500
         )
-        
+                
 @staff_member_required
 def admin_dashboard(request):
 

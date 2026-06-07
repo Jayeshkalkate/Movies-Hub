@@ -11,30 +11,31 @@ from .models import (
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'password1', 'password2')
+        fields = ("username", "email", "password1", "password2")
 
 
 class CustomUserChangeForm(UserChangeForm):
     class Meta:
         model = CustomUser
-        fields = ('username', 'email')
+        fields = ("username", "email")
 
 
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ['name', 'description', 'icon']
+        fields = ["name", "description", "icon"]
+
         widgets = {
-            'name': forms.TextInput(
+            "name": forms.TextInput(
                 attrs={
-                    'class': 'form-control',
-                    'placeholder': 'e.g., Action, Comedy, Drama'
+                    "class": "form-control",
+                    "placeholder": "e.g., Action, Comedy, Drama",
                 }
             ),
-            'description': forms.Textarea(
+            "description": forms.Textarea(
                 attrs={
-                    'rows': 3,
-                    'class': 'form-control'
+                    "rows": 3,
+                    "class": "form-control",
                 }
             ),
         }
@@ -48,76 +49,77 @@ class TelegramMovieUploadForm(forms.ModelForm):
     movie_file = forms.FileField(
         label="Video File",
         required=True,
-        help_text="Upload MP4, MKV, AVI, MOV video file."
+        help_text="Upload MP4, MKV, AVI, MOV or WEBM video file (max 2GB).",
     )
 
     class Meta:
         model = TelegramMovie
+
         fields = [
-            'title',
-            'content_type',
-            'category',
-            'year',
-            'quality',
-            'language',
-            'description',
-            'poster',
-            'duration',
-            'imdb_rating',
-            'season',
-            'episode',
-            'tags',
-            'is_featured',
+            "title",
+            "content_type",
+            "category",
+            "year",
+            "quality",
+            "language",
+            "description",
+            "poster",
+            "duration",
+            "imdb_rating",
+            "season",
+            "episode",
+            "tags",
+            "is_featured",
         ]
 
         widgets = {
-            'title': forms.TextInput(
-                attrs={'class': 'form-control'}
+            "title": forms.TextInput(
+                attrs={"class": "form-control"}
             ),
-            'content_type': forms.Select(
-                attrs={'class': 'form-select'}
+            "content_type": forms.Select(
+                attrs={"class": "form-select"}
             ),
-            'category': forms.Select(
-                attrs={'class': 'form-select'}
+            "category": forms.Select(
+                attrs={"class": "form-select"}
             ),
-            'year': forms.NumberInput(
-                attrs={'class': 'form-control'}
+            "year": forms.NumberInput(
+                attrs={"class": "form-control"}
             ),
-            'quality': forms.TextInput(
-                attrs={'class': 'form-control'}
+            "quality": forms.TextInput(
+                attrs={"class": "form-control"}
             ),
-            'language': forms.TextInput(
-                attrs={'class': 'form-control'}
+            "language": forms.TextInput(
+                attrs={"class": "form-control"}
             ),
-            'description': forms.Textarea(
+            "description": forms.Textarea(
                 attrs={
-                    'rows': 3,
-                    'class': 'form-control'
+                    "rows": 3,
+                    "class": "form-control",
                 }
             ),
-            'duration': forms.TextInput(
-                attrs={'class': 'form-control'}
+            "duration": forms.TextInput(
+                attrs={"class": "form-control"}
             ),
-            'imdb_rating': forms.NumberInput(
+            "imdb_rating": forms.NumberInput(
                 attrs={
-                    'class': 'form-control',
-                    'step': '0.1'
+                    "class": "form-control",
+                    "step": "0.1",
                 }
             ),
-            'season': forms.NumberInput(
-                attrs={'class': 'form-control'}
+            "season": forms.NumberInput(
+                attrs={"class": "form-control"}
             ),
-            'episode': forms.NumberInput(
-                attrs={'class': 'form-control'}
+            "episode": forms.NumberInput(
+                attrs={"class": "form-control"}
             ),
-            'tags': forms.TextInput(
+            "tags": forms.TextInput(
                 attrs={
-                    'class': 'form-control',
-                    'placeholder': 'action, thriller, bollywood'
+                    "class": "form-control",
+                    "placeholder": "action, thriller, bollywood",
                 }
             ),
-            'is_featured': forms.CheckboxInput(
-                attrs={'class': 'form-check-input'}
+            "is_featured": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
             ),
         }
 
@@ -130,11 +132,11 @@ class TelegramMovieUploadForm(forms.ModelForm):
             )
 
         allowed_extensions = [
-            '.mp4',
-            '.mkv',
-            '.avi',
-            '.mov',
-            '.webm'
+            ".mp4",
+            ".mkv",
+            ".avi",
+            ".mov",
+            ".webm",
         ]
 
         filename = file.name.lower()
@@ -147,12 +149,18 @@ class TelegramMovieUploadForm(forms.ModelForm):
                 "Only MP4, MKV, AVI, MOV and WEBM files are allowed."
             )
 
-        # Telegram bot upload practical limit
-        max_size = 2 * 1024 * 1024 * 1024  # 2GB
+        # Prevent empty uploads
+        if file.size == 0:
+            raise forms.ValidationError(
+                "Uploaded file is empty."
+            )
+
+        # 2 GB limit
+        max_size = 2 * 1024 * 1024 * 1024
 
         if file.size > max_size:
             raise forms.ValidationError(
-                "Video file exceeds 2GB limit."
+                "Video file exceeds the 2GB upload limit."
             )
 
         return file

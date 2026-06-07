@@ -26,11 +26,13 @@ from coremovieshub.telegram_utils import check_telegram_membership
 # =====================================================
 # MEMBERSHIP VERIFICATION
 # =====================================================
-
 @sync_to_async
 def verify_membership(telegram_id, verification_code=None):
     try:
+
+        # Verification via deep-link code
         if verification_code:
+
             verification = MembershipVerification.objects.get(
                 verification_code=verification_code
             )
@@ -39,25 +41,32 @@ def verify_membership(telegram_id, verification_code=None):
             verification.save()
 
             if check_telegram_membership(telegram_id):
+
                 verification.membership_status = True
                 verification.verified_at = timezone.now()
                 verification.save()
+
                 return "verified"
 
             return "not_member"
 
-        # verification = MembershipVerification.objects.get(
-        #     telegram_id=str(telegram_id)
-        # )
-        
-        verification = MembershipVerification.objects.filter(
-            telegram_id=str(telegram_id)
-            ).first()
+        # Verification using stored telegram_id
+        verification, created = MembershipVerification.objects.get_or_create(
+            telegram_id=str(telegram_id),
+            defaults={
+                "membership_status": False,
+                }
+            )
+
+        if not verification:
+            return "verification_not_found"
 
         if check_telegram_membership(telegram_id):
+
             verification.membership_status = True
             verification.verified_at = timezone.now()
             verification.save()
+
             return "verified"
 
         return "not_member"
@@ -65,6 +74,9 @@ def verify_membership(telegram_id, verification_code=None):
     except MembershipVerification.DoesNotExist:
         return "invalid_code"
 
+    except Exception as e:
+        print(f"Membership verification error: {e}")
+        return "error"
 
 # Improved start() function with proper verification code handling
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

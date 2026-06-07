@@ -1,14 +1,14 @@
 from telegram import Bot
-
-from django.conf import settings
-
-import logging
-
 from telegram.error import (
     TelegramError,
     TimedOut,
     NetworkError,
 )
+
+from django.conf import settings
+
+import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -31,50 +31,93 @@ async def upload_video_to_channel(
 ):
     """
     Upload video to Telegram channel.
-    Returns Telegram Message object.
+
+    Small files  -> send_video()
+    Large files  -> send_document()
+
+    Includes:
+    - Retry logic (3 attempts)
+    - Timeout handling
+    - Network error handling
+
+    Returns:
+        telegram.Message
     """
 
     bot = get_bot()
 
     try:
-        message = await bot.send_video(
-            chat_id=chat_id,
-            video=file_obj,
-            caption=caption,
-            supports_streaming=True,
-        )
+        file_size = file_obj.size
 
-        logger.info(
-            "Video uploaded successfully to channel %s",
-            chat_id
-        )
+        for attempt in range(3):
 
-        return message
+            try:
+
+                # Large files → upload as document
+                if file_size > 50 * 1024 * 1024:
+
+                    message = await bot.send_document(
+                        chat_id=chat_id,
+                        document=file_obj,
+                        caption=caption,
+                    )
+
+                # Small files → upload as video
+                else:
+
+                    message = await bot.send_video(
+                        chat_id=chat_id,
+                        video=file_obj,
+                        caption=caption,
+                        supports_streaming=True,
+                    )
+
+                logger.info(
+                    "Video uploaded successfully to channel %s",
+                    chat_id
+                )
+
+                return message
+
+            except (TimedOut, NetworkError):
+
+                logger.warning(
+                    "Upload attempt %s failed for channel %s",
+                    attempt + 1,
+                    chat_id,
+                )
+
+                if attempt == 2:
+                    raise
+
+                await asyncio.sleep(5)
+
+        raise Exception("Upload failed after 3 attempts")
 
     except TimedOut:
         logger.exception(
             "Telegram upload timed out for channel %s",
-            chat_id
+            chat_id,
         )
         raise
 
     except NetworkError:
         logger.exception(
             "Telegram network error for channel %s",
-            chat_id
+            chat_id,
         )
         raise
 
     except TelegramError:
         logger.exception(
             "Telegram API error for channel %s",
-            chat_id
+            chat_id,
         )
         raise
 
     except Exception:
         logger.exception(
             "Unexpected error while uploading video to channel %s",
-            chat_id
+            chat_id,
         )
         raise
