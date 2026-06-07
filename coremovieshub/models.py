@@ -174,10 +174,16 @@ class TelegramMovie(models.Model):
         related_name="movies"
     )
 
-    # Telegram Details
-    telegram_message_id = models.BigIntegerField()
-
-    telegram_file_id = models.TextField()
+    # Telegram Details    
+    telegram_message_id = models.BigIntegerField(
+    blank=True,
+    null=True
+    )
+    
+    telegram_file_id = models.TextField(
+        blank=True,
+        null=True
+    )
 
     telegram_message_link = models.URLField(
         blank=True,

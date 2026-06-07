@@ -29,15 +29,31 @@ load_dotenv()
 # --------------------------------------------------
 # SECURITY
 # --------------------------------------------------
-SECRET_KEY = os.getenv('SECRET_KEY')
+SECRET_KEY = os.getenv("SECRET_KEY")
 
+if not SECRET_KEY and not DEBUG:
+    raise ValueError(
+        "SECRET_KEY environment variable is required."
+    )
+
+if not SECRET_KEY:
+    SECRET_KEY = "django-insecure-dev-only-key"
+    
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    'movies-hub-6dhp.onrender.com',
-] + os.environ.get('ALLOWED_HOSTS', '').split(',')
+    host.strip()
+    for host in (
+        [
+            "localhost",
+            "127.0.0.1",
+            "movies-hub-6dhp.onrender.com",
+        ]
+        + os.getenv("ALLOWED_HOSTS", "").split(",")
+    )
+    if host.strip()
+]
+
 
 # --------------------------------------------------
 # APPLICATIONS
@@ -182,13 +198,18 @@ AWS_S3_FILE_OVERWRITE = False
 
 AWS_S3_CUSTOM_DOMAIN = (
     f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    if AWS_STORAGE_BUCKET_NAME
+    else None
 )
 
 # --------------------------------------------------
 # MEDIA FILES (VIDEOS, THUMBNAILS, ETC.)
 # --------------------------------------------------
-MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
-
+MEDIA_URL = (
+    f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    if AWS_STORAGE_BUCKET_NAME
+    else "/media/"
+)
 
 # --------------------------------------------------
 # BASE URL
@@ -200,27 +221,80 @@ BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
 # DJANGO 6 STORAGE SETTINGS
 # --------------------------------------------------
 
-STORAGES = {
-    "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-        "OPTIONS": {
-            # "default_acl": "public-read",
-            "default_acl": None,
-            "querystring_auth": False,
-            "file_overwrite": False,
+if AWS_STORAGE_BUCKET_NAME:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "default_acl": None,
+                "querystring_auth": False,
+                "file_overwrite": False,
+            },
         },
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-}
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # --------------------------------------------------
 # DEFAULT PRIMARY KEY
 # --------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# --------------------------------------------------
+# CACHE
+# --------------------------------------------------
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "movieshub-cache",
+    }
+}
+
+# --------------------------------------------------
+# LOGGING
+# --------------------------------------------------
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+        },
+    "loggers": {
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+            },
+        "telegram": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+            },
+        "coremovieshub": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+            },
+        },
+    },
 
 # --------------------------------------------------
 # TELEGRAM BOT
@@ -228,17 +302,68 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
+if not DEBUG and not TELEGRAM_BOT_TOKEN:
+    raise ValueError(
+        "TELEGRAM_BOT_TOKEN environment variable is required."
+    )
+    
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 
-TELEGRAM_BOT_USERNAME = 'jaymovieshubbot'
-
-LOGIN_URL = 'login'
+TELEGRAM_BOT_USERNAME = os.getenv(
+    "TELEGRAM_BOT_USERNAME",
+    "jaymovieshubbot"
+)
 
 TELEGRAM_ADMIN_IDS = [
-    1390641335,  # Your Telegram User ID
+    int(x)
+    for x in os.getenv(
+        "TELEGRAM_ADMIN_IDS",
+        ""
+    ).split(",")
+    if x.strip()
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://movies-hub-6dhp.onrender.com",
+]
+
+TELEGRAM_SECRET = os.getenv(
+    "TELEGRAM_SECRET",
+    ""
+)
+
+if not DEBUG and not TELEGRAM_SECRET:
+    raise ValueError(
+        "TELEGRAM_SECRET environment variable is required."
+    )
+    
+# Render Proxy Support
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
+
+# Cookie Security
+SESSION_COOKIE_HTTPONLY = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True
+
+# CSRF
+CSRF_COOKIE_HTTPONLY = False
+
+# Referrer Policy
+SECURE_REFERRER_POLICY = "same-origin"
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
 MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID")
+
+if not DEBUG and not MAIN_CHANNEL_ID:
+    raise ValueError(
+        "MAIN_CHANNEL_ID environment variable is required."
+    )
 
 # --------------------------------------------------
 # Security Improvements
@@ -250,10 +375,11 @@ SESSION_COOKIE_SECURE = not DEBUG
 
 CSRF_COOKIE_SECURE = not DEBUG
 
-SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 
-SECURE_HSTS_PRELOAD = True
+SECURE_HSTS_PRELOAD = not DEBUG
 
 X_FRAME_OPTIONS = "DENY"
+

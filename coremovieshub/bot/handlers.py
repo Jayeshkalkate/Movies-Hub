@@ -46,9 +46,13 @@ def verify_membership(telegram_id, verification_code=None):
 
             return "not_member"
 
-        verification = MembershipVerification.objects.get(
+        # verification = MembershipVerification.objects.get(
+        #     telegram_id=str(telegram_id)
+        # )
+        
+        verification = MembershipVerification.objects.filter(
             telegram_id=str(telegram_id)
-        )
+            ).first()
 
         if check_telegram_membership(telegram_id):
             verification.membership_status = True
@@ -119,7 +123,8 @@ def get_category(category_id):
 
 @sync_to_async
 def get_channel_for_category(category):
-    return TelegramChannel.objects.get(category=category)
+    return TelegramChannel.objects.filter(category=category).first()
+    # return TelegramChannel.objects.get(category=category)
 
 
 @sync_to_async

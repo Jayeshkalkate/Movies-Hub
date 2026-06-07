@@ -9,6 +9,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
+import asyncio
 from django.http import JsonResponse
 from django.shortcuts import (
     render,
@@ -57,6 +58,18 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from .bot import setup_bot  # we'll modify this to return the app
 
+
+import json
+import asyncio
+import logging
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from telegram import Update
+
+logger = logging.getLogger(__name__)
+
 _bot_app = None
 
 def get_bot_app():
@@ -67,18 +80,63 @@ def get_bot_app():
 
 @csrf_exempt
 def telegram_webhook(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            app = get_bot_app()
-            update = Update.de_json(data, app.bot)
-            # Run the async update processor synchronously
-            async_to_sync(app.process_update)(update)
-            return JsonResponse({"status": "ok"})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-    return JsonResponse({"error": "Method not allowed"}, status=405)
+    if request.method != "POST":
+        return JsonResponse(
+            {"error": "Method not allowed"},
+            status=405
+        )
 
+    # Verify Telegram secret token
+    secret_token = request.headers.get(
+        "X-Telegram-Bot-Api-Secret-Token"
+    )
+
+    if secret_token != settings.TELEGRAM_SECRET:
+        logger.warning(
+            "Unauthorized webhook request received."
+        )
+        return JsonResponse(
+            {"error": "Unauthorized"},
+            status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+
+        app = get_bot_app()
+
+        update = Update.de_json(
+            data,
+            app.bot
+        )
+
+        # Run async update processor
+        asyncio.run(
+            app.process_update(update)
+        )
+
+        return JsonResponse(
+            {"status": "ok"}
+        )
+
+    except json.JSONDecodeError:
+        logger.exception(
+            "Invalid JSON received from webhook."
+        )
+        return JsonResponse(
+            {"error": "Invalid JSON"},
+            status=400
+        )
+
+    except Exception as e:
+        logger.exception(
+            "Webhook processing failed."
+        )
+        return JsonResponse(
+            {"error": str(e)},
+            status=500
+        )
+        
 @staff_member_required
 def admin_dashboard(request):
 
@@ -348,7 +406,7 @@ def upload_movie(request):
                 f"Year: {form.cleaned_data.get('year', 'N/A')}\n"
                 f"Quality: {form.cleaned_data.get('quality', 'N/A')}"
             )
-
+            
             # Upload video to Telegram
             try:
                 sent_message = async_to_sync(
