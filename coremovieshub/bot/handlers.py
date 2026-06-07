@@ -25,22 +25,10 @@ from coremovieshub.telegram_utils import check_telegram_membership
 from telegram.ext import Application
 from asgiref.sync import async_to_sync
 
-app = (
-    Application.builder()
-    .token(settings.TELEGRAM_BOT_TOKEN)
-    .build()
-)
+import logging
 
-_initialized = False
+logger = logging.getLogger(__name__)
 
-def get_application():
-    global _initialized
-
-    if not _initialized:
-        async_to_sync(app.initialize)()
-        _initialized = True
-
-    return app
 # =====================================================
 # MEMBERSHIP VERIFICATION
 # =====================================================
@@ -96,37 +84,92 @@ def verify_membership(telegram_id, verification_code=None):
         print(f"Membership verification error: {e}")
         return "error"
 
-# Improved start() function with proper verification code handling
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
+    if not user:
+        return
+
     telegram_id = user.id
 
-    raw_code = context.args[0] if context.args else None
+    logger.info(
+        "START command received from Telegram ID: %s",
+        telegram_id
+    )
+
+    raw_code = context.args[0].strip() if context.args else None
     verification_code = None
 
     if raw_code and raw_code.startswith("verify_"):
-        verification_code = raw_code[7:]   # remove "verify_"
+        verification_code = raw_code[7:]
 
-    result = await verify_membership(telegram_id, verification_code)
-
-    if result == "verified":
-        await update.message.reply_text(
-            "✅ Your MovieHub account has been verified!\n\n"
-            "You can now access all content on the website."
+        logger.info(
+            "Verification code detected: %s",
+            verification_code
         )
 
-    elif result == "not_member":
+    # Normal /start without deep-link
+    elif not raw_code:
         await update.message.reply_text(
-            "❌ You are not a member of the required channel.\n\n"
-            "Please join the channel and try again."
+            "👋 Welcome to MovieHub!\n\n"
+            "Please use the verification link from the website."
+        )
+        return
+
+    try:
+        result = await verify_membership(
+            telegram_id,
+            verification_code
         )
 
-    else:
-        await update.message.reply_text(
-            "⚠️ Invalid verification link."
+        logger.info(
+            "Verification result for %s: %s",
+            telegram_id,
+            result
         )
 
+        if result == "verified":
+            await update.message.reply_text(
+                "✅ Your MovieHub account has been verified successfully!\n\n"
+                "🎬 You can now access all content on the website."
+            )
 
+        elif result == "not_member":
+            await update.message.reply_text(
+                "❌ Verification failed.\n\n"
+                "Please join the required Telegram channel and try again."
+            )
+
+        elif result == "invalid_code":
+            await update.message.reply_text(
+                "⚠️ Invalid or expired verification link.\n\n"
+                "Please return to MovieHub and generate a new verification link."
+            )
+
+        elif result == "verification_not_found":
+            await update.message.reply_text(
+                "⚠️ Verification record not found."
+            )
+
+        else:
+            await update.message.reply_text(
+                "⚠️ Verification could not be completed.\n\n"
+                "Please try again later."
+            )
+
+    except Exception as e:
+        logger.exception(
+            "Error during verification for Telegram ID %s: %s",
+            telegram_id,
+            str(e)
+        )
+
+        await update.message.reply_text(
+            "❌ An unexpected error occurred while processing "
+            "your verification request.\n\n"
+            "Please try again later."
+        )
+        
 # =====================================================
 # MOVIE UPLOAD SYSTEM
 # =====================================================

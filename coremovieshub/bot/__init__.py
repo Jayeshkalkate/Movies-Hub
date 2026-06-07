@@ -84,3 +84,21 @@ def setup_bot():
     application.add_handler(conv_handler)
 
     return application
+
+from asgiref.sync import async_to_sync
+
+_app = None
+_initialized = False
+
+def get_application():
+    global _app
+    global _initialized
+
+    if _app is None:
+        _app = setup_bot()
+
+    if not _initialized:
+        async_to_sync(_app.initialize)()
+        _initialized = True
+
+    return _app
