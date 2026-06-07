@@ -22,7 +22,25 @@ from coremovieshub.models import (
 
 from coremovieshub.telegram_utils import check_telegram_membership
 
+from telegram.ext import Application
+from asgiref.sync import async_to_sync
 
+app = (
+    Application.builder()
+    .token(settings.TELEGRAM_BOT_TOKEN)
+    .build()
+)
+
+_initialized = False
+
+def get_application():
+    global _initialized
+
+    if not _initialized:
+        async_to_sync(app.initialize)()
+        _initialized = True
+
+    return app
 # =====================================================
 # MEMBERSHIP VERIFICATION
 # =====================================================

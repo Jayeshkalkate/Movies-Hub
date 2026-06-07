@@ -1,8 +1,5 @@
 # Create your views here.
 import logging
-
-from asgiref.sync import async_to_sync
-from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
@@ -10,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
 import asyncio
-from django.http import JsonResponse
+from .handlers import get_application
 from django.shortcuts import (
     render,
     redirect,
@@ -49,34 +46,18 @@ import json
 from asgiref.sync import async_to_sync
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from telegram import Update
-from .bot import setup_bot
 
-from telegram.ext import Application, ExtBot
 from telegram import Update
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from .bot import setup_bot  # we'll modify this to return the app
-
 
 import json
 import asyncio
 import logging
 
 from django.conf import settings
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from telegram import Update
 
 logger = logging.getLogger(__name__)
-
-_bot_app = None
-
-def get_bot_app():
-    global _bot_app
-    if _bot_app is None:
-        _bot_app = setup_bot()
-    return _bot_app
 
 @csrf_exempt
 def telegram_webhook(request):
@@ -109,7 +90,7 @@ def telegram_webhook(request):
 
         data = json.loads(body)
 
-        app = get_bot_app()
+        app = get_application()
 
         if app is None:
             logger.error(
@@ -130,11 +111,10 @@ def telegram_webhook(request):
             "Received Telegram update: %s",
             update.update_id
         )
-
-        # Process update
+        
         async_to_sync(
             app.process_update
-        )(update)
+            )(update)
 
         return JsonResponse(
             {"status": "ok"},
