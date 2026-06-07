@@ -1,5 +1,8 @@
 # coremovieshub/bot/__init__.py
 
+from asgiref.sync import async_to_sync
+from django.conf import settings
+
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -8,8 +11,6 @@ from telegram.ext import (
     ConversationHandler,
     filters,
 )
-
-from django.conf import settings
 
 from .handlers import (
     start,
@@ -28,6 +29,8 @@ from .handlers import (
     UPLOAD,
 )
 
+_app = None
+
 
 def setup_bot():
     application = (
@@ -39,13 +42,21 @@ def setup_bot():
     )
 
     # Basic Commands
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("search", search_movies))
+    application.add_handler(
+        CommandHandler("start", start)
+    )
+
+    application.add_handler(
+        CommandHandler("search", search_movies)
+    )
 
     # Upload Conversation
     conv_handler = ConversationHandler(
         entry_points=[
-            CommandHandler("upload", upload_start)
+            CommandHandler(
+                "upload",
+                upload_start,
+            )
         ],
         states={
             TITLE: [
@@ -55,7 +66,9 @@ def setup_bot():
                 )
             ],
             CATEGORY_STATE: [
-                CallbackQueryHandler(category_chosen)
+                CallbackQueryHandler(
+                    category_chosen
+                )
             ],
             YEAR: [
                 MessageHandler(
@@ -77,7 +90,10 @@ def setup_bot():
             ],
         },
         fallbacks=[
-            CommandHandler("cancel", cancel)
+            CommandHandler(
+                "cancel",
+                cancel,
+            )
         ],
     )
 
@@ -85,20 +101,21 @@ def setup_bot():
 
     return application
 
-from asgiref.sync import async_to_sync
-
-_app = None
-_initialized = False
 
 def get_application():
+    """
+    Create and initialize the Telegram application only once.
+    """
     global _app
-    global _initialized
 
     if _app is None:
         _app = setup_bot()
 
-    if not _initialized:
+        # Initialize PTB
         async_to_sync(_app.initialize)()
-        _initialized = True
+
+        # Start PTB
+        async_to_sync(_app.start)()
 
     return _app
+

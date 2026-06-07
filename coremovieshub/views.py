@@ -1,5 +1,4 @@
 # Create your views here.
-import logging
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
@@ -8,7 +7,6 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
 import asyncio
 from .bot import get_application
-# from .bot.handlers import get_application
 from django.shortcuts import (
     render,
     redirect,
@@ -38,33 +36,22 @@ from .telegram_utils import (
     generate_verification_code,
 )
 
-logger = logging.getLogger(__name__)
-
 from django.core.cache import cache
 
 # coremovieshub/views.py (add at the bottom)
 import json
 from asgiref.sync import async_to_sync
-from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-
-from telegram import Update
-
-import json
-import asyncio
 import logging
-
-from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from telegram import Update
 
 logger = logging.getLogger(__name__)
 
+from asgiref.sync import async_to_sync
+
 @csrf_exempt
 def telegram_webhook(request):
-    """
-    Telegram webhook endpoint.
-    """
 
     if request.method != "POST":
         return JsonResponse(
@@ -72,64 +59,34 @@ def telegram_webhook(request):
             status=405
         )
 
-    # Verify Telegram secret token
     secret_token = request.headers.get(
         "X-Telegram-Bot-Api-Secret-Token"
     )
 
     if secret_token != settings.TELEGRAM_SECRET:
-        logger.warning(
-            "Unauthorized webhook request received."
-        )
         return JsonResponse(
             {"error": "Unauthorized"},
             status=403
         )
 
     try:
-        body = request.body.decode("utf-8")
-
-        data = json.loads(body)
+        data = json.loads(
+            request.body.decode("utf-8")
+        )
 
         app = get_application()
-
-        if app is None:
-            logger.error(
-                "Telegram bot application not initialized."
-            )
-
-            return JsonResponse(
-                {"error": "Bot unavailable"},
-                status=503
-            )
 
         update = Update.de_json(
             data,
             app.bot
         )
 
-        logger.info(
-            "Received Telegram update: %s",
-            update.update_id
-        )
-        
         async_to_sync(
             app.process_update
-            )(update)
+        )(update)
 
         return JsonResponse(
-            {"status": "ok"},
-            status=200
-        )
-
-    except json.JSONDecodeError:
-        logger.exception(
-            "Invalid JSON received from Telegram."
-        )
-
-        return JsonResponse(
-            {"error": "Invalid JSON"},
-            status=400
+            {"status": "ok"}
         )
 
     except Exception:
@@ -141,7 +98,7 @@ def telegram_webhook(request):
             {"error": "Internal server error"},
             status=500
         )
-                
+                        
 @staff_member_required
 def admin_dashboard(request):
 
@@ -376,11 +333,6 @@ def check_verification(request):
     # For manual check – just redirect back to verification page
     messages.warning(request, 'You are not verified yet. Please join the Telegram channel and verify.')
     return redirect('verify_telegram')
-
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 @staff_member_required
 def upload_movie(request):
