@@ -220,10 +220,34 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # --------------------------------------------------
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
+
 TELEGRAM_BOT_USERNAME = 'jaymovieshubbot'
+
 LOGIN_URL = 'login'
+
 TELEGRAM_ADMIN_IDS = [
     1390641335,  # Your Telegram User ID
 ]
+
 MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID")
+
+
+# --------------------------------------------------
+# Security Improvements
+# --------------------------------------------------
+
+SECURE_SSL_REDIRECT = not DEBUG
+
+SESSION_COOKIE_SECURE = not DEBUG
+
+CSRF_COOKIE_SECURE = not DEBUG
+
+SECURE_HSTS_SECONDS = 31536000
+
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+SECURE_HSTS_PRELOAD = True
+
+X_FRAME_OPTIONS = "DENY"

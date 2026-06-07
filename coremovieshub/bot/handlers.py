@@ -29,8 +29,8 @@ from coremovieshub.telegram_utils import check_telegram_membership
 
 @sync_to_async
 def verify_membership(telegram_id, verification_code=None):
-    if verification_code:
-        try:
+    try:
+        if verification_code:
             verification = MembershipVerification.objects.get(
                 verification_code=verification_code
             )
@@ -46,33 +46,27 @@ def verify_membership(telegram_id, verification_code=None):
 
             return "not_member"
 
-        except MembershipVerification.DoesNotExist:
-            return "invalid_code"
+        verification = MembershipVerification.objects.get(
+            telegram_id=str(telegram_id)
+        )
 
-    else:
-        try:
-            verification = MembershipVerification.objects.get(
-                telegram_id=str(telegram_id)
-            )
+        if check_telegram_membership(telegram_id):
+            verification.membership_status = True
+            verification.verified_at = timezone.now()
+            verification.save()
+            return "verified"
 
-            if check_telegram_membership(telegram_id):
-                verification.membership_status = True
-                verification.verified_at = timezone.now()
-                verification.save()
-                return "verified"
+        return "not_member"
 
-            return "not_member"
-
-        except MembershipVerification.DoesNotExist:
-            return "no_record"
+    except MembershipVerification.DoesNotExist:
+        return "invalid_code"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
 
-    args = context.args
-    verification_code = args[0] if args else None
+    verification_code = context.args[0] if context.args else None
 
     result = await verify_membership(
         telegram_id,
@@ -81,23 +75,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if result == "verified":
         await update.message.reply_text(
-            "✅ Your MovieHub account has been verified!\n"
+            "✅ Your MovieHub account has been verified!\n\n"
             "You can now access all content on the website."
         )
 
     elif result == "not_member":
-        channel_link = settings.TELEGRAM_CHANNEL_ID
-
         await update.message.reply_text(
-            f"❌ You are not a member of our channel.\n\n"
-            f"Please join:\n{channel_link}\n\n"
-            f"Then click /start again."
+            "❌ You are not a member of the required channel.\n\n"
+            "Please join the channel and try again."
         )
 
     else:
         await update.message.reply_text(
-            "⚠️ Invalid verification link.\n"
-            "Please verify again from the website."
+            "⚠️ Invalid verification link."
         )
 
 
@@ -114,7 +104,7 @@ def user_has_staff_access(user_id):
 
 @sync_to_async
 def get_categories():
-    return list(Category.objects.all())
+    return list(Category.objects.order_by("name"))
 
 
 @sync_to_async
@@ -136,7 +126,7 @@ def save_movie(
     file_id,
     message_link,
     year,
-    quality
+    quality,
 ):
     TelegramMovie.objects.create(
         title=title,
@@ -148,13 +138,11 @@ def save_movie(
         year=year,
         quality=quality,
     )
-    
+
 
 async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    user_id = update.effective_user.id
-
-    if not user_has_staff_access(user_id):
+    if not user_has_staff_access(update.effective_user.id):
         await update.message.reply_text(
             "❌ Only administrators can upload movies."
         )
@@ -173,21 +161,29 @@ async def title_received(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
-    context.user_data["title"] = update.message.text
+    context.user_data["title"] = update.message.text.strip()
 
     categories = await get_categories()
 
-    buttons = [
-        [InlineKeyboardButton(
-            cat.name,
-            callback_data=str(cat.id)
-        )]
-        for cat in categories
+    if not categories:
+        await update.message.reply_text(
+            "❌ No categories found."
+        )
+        return ConversationHandler.END
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                category.name,
+                callback_data=str(category.id)
+            )
+        ]
+        for category in categories
     ]
 
     await update.message.reply_text(
         "📂 Choose category:",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
     return CATEGORY_STATE
@@ -198,6 +194,7 @@ async def category_chosen(
     context: ContextTypes.DEFAULT_TYPE
 ):
     query = update.callback_query
+
     await query.answer()
 
     context.user_data["category_id"] = int(query.data)
@@ -215,13 +212,14 @@ async def year_received(
 ):
     year_text = update.message.text.strip()
 
-    if year_text.isdigit():
-        context.user_data["year"] = int(year_text)
-    else:
-        context.user_data["year"] = None
+    context.user_data["year"] = (
+        int(year_text)
+        if year_text.isdigit()
+        else None
+    )
 
     await update.message.reply_text(
-        "🎥 Enter quality (720p / 1080p / 4K):"
+        "🎥 Enter quality (480p / 720p / 1080p / 4K):"
     )
 
     return QUALITY
@@ -234,7 +232,7 @@ async def quality_received(
     context.user_data["quality"] = update.message.text.strip()
 
     await update.message.reply_text(
-        "📤 Send the movie video file now."
+        "📤 Send the movie file now."
     )
 
     return UPLOAD
@@ -248,7 +246,7 @@ async def video_received(
 
     if not video:
         await update.message.reply_text(
-            "❌ Please send a video file."
+            "❌ Please send a Telegram video."
         )
         return UPLOAD
 
@@ -261,46 +259,56 @@ async def video_received(
             category
         )
 
-    except TelegramChannel.DoesNotExist:
+    except Category.DoesNotExist:
         await update.message.reply_text(
-            f"❌ No Telegram channel configured for {category.name}"
+            "❌ Category not found."
         )
         return ConversationHandler.END
 
+    except TelegramChannel.DoesNotExist:
+        await update.message.reply_text(
+            "❌ No Telegram channel configured for this category."
+        )
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        "⏳ Uploading movie..."
+    )
+
     caption = (
         f"🎬 {context.user_data['title']}\n"
-        f"📅 Year: {context.user_data['year']}\n"
+        f"📅 Year: {context.user_data['year'] or 'N/A'}\n"
         f"🎥 Quality: {context.user_data['quality']}"
     )
 
-    sent = await context.bot.send_video(
+    sent_message = await context.bot.send_video(
         chat_id=target_channel.chat_id,
         video=video.file_id,
         caption=caption,
         supports_streaming=True
     )
-    
-    chat_link_part = target_channel.chat_id
-    
-    if chat_link_part.startswith("-100"):
-        chat_link_part = chat_link_part[4:]
-        
+
+    chat_id = str(target_channel.chat_id)
+
+    if chat_id.startswith("-100"):
+        chat_id = chat_id[4:]
+
     message_link = (
-            f"https://t.me/c/"
-            f"{chat_link_part}/"
-            f"{sent.message_id}"
-            )
+        f"https://t.me/c/"
+        f"{chat_id}/"
+        f"{sent_message.message_id}"
+    )
 
     await save_movie(
-    title=context.user_data["title"],
-    category=category,
-    channel=target_channel,
-    message_id=sent.message_id,
-    file_id=video.file_id,
-    message_link=message_link,
-    year=context.user_data["year"],
-    quality=context.user_data["quality"]
-)
+        title=context.user_data["title"],
+        category=category,
+        channel=target_channel,
+        message_id=sent_message.message_id,
+        file_id=video.file_id,
+        message_link=message_link,
+        year=context.user_data["year"],
+        quality=context.user_data["quality"],
+    )
 
     await update.message.reply_text(
         f"✅ Movie uploaded successfully!\n\n"
@@ -325,40 +333,64 @@ async def cancel(
     return ConversationHandler.END
 
 
+# =====================================================
+# SEARCH MOVIES
+# =====================================================
+
 @sync_to_async
 def search_movie_db(query):
     return list(
         TelegramMovie.objects.filter(
             title__icontains=query
-        ).select_related(
+        )
+        .select_related(
             "category",
             "channel"
         )[:10]
     )
 
-async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def search_movies(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
     if not context.args:
-        await update.message.reply_text("Usage:\n/search movie_name")
+        await update.message.reply_text(
+            "Usage:\n/search movie_name"
+        )
         return
 
     query = " ".join(context.args).strip()
-    results = await search_movie_db(query)
 
-    if not results:
-        await update.message.reply_text("❌ No movies found.")
+    movies = await search_movie_db(query)
+
+    if not movies:
+        await update.message.reply_text(
+            "❌ No movies found."
+        )
         return
 
-    for movie in results:
-        category = movie.category.name if movie.category else "Unknown"
+    for movie in movies:
+
+        category = (
+            movie.category.name
+            if movie.category
+            else "Unknown"
+        )
+
         year = movie.year or "N/A"
         quality = movie.quality or "N/A"
 
-        # Build deep link to the Telegram message
-        # chat_id is like "-1001234567890" – remove "-100" to get public part
-        chat_link_part = movie.channel.chat_id
-        if chat_link_part.startswith("-100"):
-            chat_link_part = chat_link_part[4:]   # remove "-100"
-        message_link = f"https://t.me/c/{chat_link_part}/{movie.telegram_message_id}"
+        chat_id = str(movie.channel.chat_id)
+
+        if chat_id.startswith("-100"):
+            chat_id = chat_id[4:]
+
+        message_link = (
+            f"https://t.me/c/"
+            f"{chat_id}/"
+            f"{movie.telegram_message_id}"
+        )
 
         text = (
             f"🎬 *{movie.title}*\n"
@@ -367,5 +399,10 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎥 Quality: {quality}\n\n"
             f"🔗 [Watch on Telegram]({message_link})"
         )
-        await update.message.reply_text(text, parse_mode='Markdown', disable_web_page_preview=True)
+
+        await update.message.reply_text(
+            text,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
         

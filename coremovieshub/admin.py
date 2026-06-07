@@ -88,10 +88,13 @@ class TelegramChannelAdmin(admin.ModelAdmin):
 class TelegramMovieAdmin(admin.ModelAdmin):
     list_display = (
         'title',
+        'slug',
         'content_type',
         'category',
         'quality',
         'year',
+        'duration',
+        'imdb_rating',
         'views',
         'downloads',
         'created_at'
@@ -101,10 +104,23 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         'content_type',
         'category',
         'quality',
-        'created_at'
+        'is_featured'
     )
 
     search_fields = (
         'title',
-        'description'
+        'description',
+        'tags'
     )
+
+    prepopulated_fields = {
+        'slug': ('title',)
+    }
+
+    readonly_fields = (
+        'telegram_message_link',
+        'telegram_file_id',
+        'views',
+        'downloads'
+    )
+

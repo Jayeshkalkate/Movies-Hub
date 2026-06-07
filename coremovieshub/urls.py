@@ -52,4 +52,10 @@ path(
     views.admin_dashboard,
     name="admin_dashboard"
 ),
+path('admin/upload-movie/', views.upload_movie, name='upload_movie'),
+path(
+    'admin/upload-movie/',
+    views.upload_movie,
+    name='upload_movie'
+),
 ]

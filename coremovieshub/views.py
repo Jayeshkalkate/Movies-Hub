@@ -1,5 +1,7 @@
 # Create your views here.
-
+from .forms import TelegramMovieUploadForm
+from .services.telegram_upload import upload_video_to_channel
+import asyncio
 from django.shortcuts import render, redirect
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -227,7 +229,7 @@ def verify_telegram(request):
     
     return render(request, 'telegram/verify.html', {
         'telegram_deep_link': telegram_deep_link,
-        'channel_link': settings.TELEGRAM_CHANNEL_ID,
+        'channel_link': settings.MAIN_CHANNEL_ID,
         'is_verified': verification.membership_status,
     })
     
@@ -251,3 +253,82 @@ def check_verification(request):
     messages.warning(request, 'You are not verified yet. Please join the Telegram channel and verify.')
     return redirect('verify_telegram')
 
+@staff_member_required
+def upload_movie(request):
+    if request.method == 'POST':
+        form = TelegramMovieUploadForm(
+            request.POST,
+            request.FILES
+        )
+
+        if form.is_valid():
+
+            category = form.cleaned_data['category']
+
+            try:
+                channel = TelegramChannel.objects.get(
+                    category=category
+                )
+
+            except TelegramChannel.DoesNotExist:
+                messages.error(
+                    request,
+                    f"No Telegram channel configured for category '{category.name}'"
+                )
+                return redirect('upload_movie')
+
+            caption = (
+                f"{form.cleaned_data['title']}\n"
+                f"Year: {form.cleaned_data.get('year', 'N/A')}\n"
+                f"Quality: {form.cleaned_data.get('quality', 'N/A')}"
+            )
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                sent_message = loop.run_until_complete(
+                    upload_video_to_channel(
+                        file_obj=request.FILES['movie_file'],
+                        chat_id=channel.chat_id,
+                        caption=caption
+                    )
+                )
+            finally:
+                loop.close()
+
+            movie = form.save(commit=False)
+
+            movie.channel = channel
+            movie.telegram_message_id = sent_message.message_id
+            movie.telegram_file_id = sent_message.video.file_id
+
+            chat_link_part = str(channel.chat_id)
+
+            if chat_link_part.startswith("-100"):
+                chat_link_part = chat_link_part[4:]
+
+            movie.telegram_message_link = (
+                f"https://t.me/c/{chat_link_part}/{sent_message.message_id}"
+            )
+
+            movie.save()
+
+            messages.success(
+                request,
+                f"Movie '{movie.title}' uploaded successfully!"
+            )
+
+            return redirect('admin_dashboard')
+
+    else:
+        form = TelegramMovieUploadForm()
+
+    return render(
+        request,
+        'admin/upload_movie.html',
+        {
+            'form': form
+        }
+    )
+    
