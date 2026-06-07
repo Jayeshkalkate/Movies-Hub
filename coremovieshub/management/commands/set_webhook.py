@@ -9,8 +9,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         webhook_url = f"{settings.BASE_URL}/webhook/"
+        self.stdout.write(f"Webhook URL: {webhook_url}")
         token = settings.TELEGRAM_BOT_TOKEN
         url = f"https://api.telegram.org/bot{token}/setWebhook"
-        response = requests.post(url, json={'url': webhook_url})
+        response = requests.post(
+            url,json={
+                "url": webhook_url,
+                "secret_token": settings.TELEGRAM_SECRET
+                }
+            )
         self.stdout.write(str(response.json()))
         

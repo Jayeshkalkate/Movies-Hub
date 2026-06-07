@@ -342,7 +342,7 @@ SECURE_PROXY_SSL_HEADER = (
 # BASE URL
 # --------------------------------------------------
 
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+BASE_URL = os.environ.get("BASE_URL")
 
 # Cookie Security
 SESSION_COOKIE_HTTPONLY = True
