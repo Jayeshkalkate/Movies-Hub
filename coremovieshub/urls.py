@@ -30,6 +30,7 @@ path('videos/', views.video_list, name='video_list'),
 path('categories/add/', views.add_category, name='add_category'),
 path('verify/', views.verify_telegram, name='verify_telegram'),
 path('check-verification/', views.check_verification, name='check_verification'),
+path("webhook/", views.telegram_webhook, name="telegram_webhook"),
 path(
     "search/",
     views.search_movies,
@@ -52,7 +53,6 @@ path(
     views.admin_dashboard,
     name="admin_dashboard"
 ),
-path('admin/upload-movie/', views.upload_movie, name='upload_movie'),
 path(
     'admin/upload-movie/',
     views.upload_movie,

@@ -189,6 +189,13 @@ AWS_S3_CUSTOM_DOMAIN = (
 # --------------------------------------------------
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 
+
+# --------------------------------------------------
+# BASE URL
+# --------------------------------------------------
+
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+
 # --------------------------------------------------
 # DJANGO 6 STORAGE SETTINGS
 # --------------------------------------------------
@@ -232,7 +239,6 @@ TELEGRAM_ADMIN_IDS = [
 ]
 
 MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID")
-
 
 # --------------------------------------------------
 # Security Improvements

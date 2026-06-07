@@ -1,68 +1,127 @@
 # Create your views here.
-from .forms import TelegramMovieUploadForm
-from .services.telegram_upload import upload_video_to_channel
-import asyncio
-from django.shortcuts import render, redirect
+import logging
+
+from asgiref.sync import async_to_sync
+
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from .models import Video
-from .forms import CustomUserCreationForm, CustomUserChangeForm
 from django.contrib.admin.views.decorators import staff_member_required
-from .forms import CategoryForm
-from .models import Category
-from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
-from .models import MembershipVerification
-from .telegram_utils import generate_verification_code
+from django.db.models import F
 from django.http import JsonResponse
-from .telegram_utils import check_telegram_membership
-from django.conf import settings
-from .models import TelegramMovie
-from django.db.models import Count
+from django.shortcuts import (
+    render,
+    redirect,
+    get_object_or_404,
+)
+
+from .forms import (
+    TelegramMovieUploadForm,
+    CustomUserCreationForm,
+    CustomUserChangeForm,
+    CategoryForm,
+)
+
 from .models import (
+    Video,
+    Category,
+    MembershipVerification,
     TelegramMovie,
     TelegramChannel,
-    MembershipVerification,
-    Category
 )
+
+from .services.telegram_upload import (
+    upload_video_to_channel,
+)
+
+from .telegram_utils import (
+    generate_verification_code,
+)
+
+logger = logging.getLogger(__name__)
+
+from django.core.cache import cache
+
+# coremovieshub/views.py (add at the bottom)
+import json
+from asgiref.sync import async_to_sync
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from telegram import Update
+from .bot import setup_bot
+
+from telegram.ext import Application, ExtBot
+from telegram import Update
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from .bot import setup_bot  # we'll modify this to return the app
+
+_bot_app = None
+
+def get_bot_app():
+    global _bot_app
+    if _bot_app is None:
+        _bot_app = setup_bot()
+    return _bot_app
+
+@csrf_exempt
+def telegram_webhook(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            app = get_bot_app()
+            update = Update.de_json(data, app.bot)
+            # Run the async update processor synchronously
+            async_to_sync(app.process_update)(update)
+            return JsonResponse({"status": "ok"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
 
 @staff_member_required
 def admin_dashboard(request):
 
-    total_movies = TelegramMovie.objects.count()
+    stats = cache.get("admin_dashboard_stats")
 
-    total_categories = Category.objects.count()
+    if not stats:
+        stats = {
+            "total_movies": TelegramMovie.objects.count(),
+            "total_categories": Category.objects.count(),
+            "total_channels": TelegramChannel.objects.count(),
+            "verified_users": MembershipVerification.objects.filter(
+                membership_status=True
+            ).count(),
+        }
 
-    total_channels = TelegramChannel.objects.count()
-
-    verified_users = MembershipVerification.objects.filter(
-        membership_status=True
-    ).count()
-
-    context = {
-        "total_movies": total_movies,
-        "total_categories": total_categories,
-        "total_channels": total_channels,
-        "verified_users": verified_users,
-    }
+        # Cache for 5 minutes
+        cache.set(
+            "admin_dashboard_stats",
+            stats,
+            timeout=300
+        )
 
     return render(
         request,
         "dashboard/admin_dashboard.html",
-        context
+        stats
     )
-    
+
 @login_required
 def movie_detail(request, movie_id):
-
     movie = get_object_or_404(
         TelegramMovie,
         id=movie_id
     )
 
-    movie.views += 1
-    movie.save()
+    # Increment view count atomically
+    TelegramMovie.objects.filter(
+        id=movie.id
+    ).update(
+        views=F("views") + 1
+    )
+
+    movie.refresh_from_db()
 
     return render(
         request,
@@ -100,8 +159,10 @@ def search_movies(request):
     movies = TelegramMovie.objects.none()
 
     if query:
-        movies = TelegramMovie.objects.filter(
-            title__icontains=query
+        movies = (
+            TelegramMovie.objects
+            .select_related("category", "channel")
+            .filter(title__icontains=query)
         ).select_related(
             "category",
             "channel"
@@ -115,16 +176,19 @@ def search_movies(request):
             "movies": movies
         }
     )
-    
+
 def home(request):
+    latest_movies = (
+        TelegramMovie.objects
+        .select_related("category", "channel")
+        .order_by("-created_at")[:12]
+    )
 
-    latest_movies = TelegramMovie.objects.order_by(
-        "-created_at"
-    )[:12]
-
-    featured_movies = TelegramMovie.objects.filter(
-        is_featured=True
-    )[:8]
+    featured_movies = (
+        TelegramMovie.objects
+        .select_related("category", "channel")
+        .filter(is_featured=True)[:8]
+    )
 
     categories = Category.objects.all()
 
@@ -137,7 +201,7 @@ def home(request):
             "categories": categories,
         }
     )
-
+    
 def about(request):
     return render(request, 'home/about.html')
 
@@ -185,8 +249,6 @@ def edit_profile(request):
         'accounts/edit_profile.html',
         {'form': form}
     )
-    
-from .models import TelegramMovie   # add at the top
 
 @login_required
 def video_list(request):
@@ -235,8 +297,7 @@ def verify_telegram(request):
     
 @login_required
 def check_verification(request):
-    verification = get_object_or_404(MembershipVerification, user=request.user)
-    
+    verification, created = MembershipVerification.objects.get_or_create(user=request.user)
     # If already verified, redirect to videos
     if verification.membership_status:
         messages.success(request, 'You are already verified! Enjoy the videos.')
@@ -253,9 +314,14 @@ def check_verification(request):
     messages.warning(request, 'You are not verified yet. Please join the Telegram channel and verify.')
     return redirect('verify_telegram')
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 @staff_member_required
 def upload_movie(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = TelegramMovieUploadForm(
             request.POST,
             request.FILES
@@ -263,7 +329,7 @@ def upload_movie(request):
 
         if form.is_valid():
 
-            category = form.cleaned_data['category']
+            category = form.cleaned_data["category"]
 
             try:
                 channel = TelegramChannel.objects.get(
@@ -273,9 +339,9 @@ def upload_movie(request):
             except TelegramChannel.DoesNotExist:
                 messages.error(
                     request,
-                    f"No Telegram channel configured for category '{category.name}'"
+                    f"No Telegram channel configured for category '{category.name}'."
                 )
-                return redirect('upload_movie')
+                return redirect("upload_movie")
 
             caption = (
                 f"{form.cleaned_data['title']}\n"
@@ -283,25 +349,37 @@ def upload_movie(request):
                 f"Quality: {form.cleaned_data.get('quality', 'N/A')}"
             )
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
+            # Upload video to Telegram
             try:
-                sent_message = loop.run_until_complete(
-                    upload_video_to_channel(
-                        file_obj=request.FILES['movie_file'],
-                        chat_id=channel.chat_id,
-                        caption=caption
-                    )
+                sent_message = async_to_sync(
+                    upload_video_to_channel
+                )(
+                    file_obj=request.FILES["movie_file"],
+                    chat_id=channel.chat_id,
+                    caption=caption
                 )
-            finally:
-                loop.close()
+
+            except Exception as e:
+                logger.exception(
+                    "Telegram upload failed"
+                )
+
+                messages.error(
+                    request,
+                    f"Telegram upload failed: {str(e)}"
+                )
+
+                return redirect("upload_movie")
 
             movie = form.save(commit=False)
 
             movie.channel = channel
             movie.telegram_message_id = sent_message.message_id
-            movie.telegram_file_id = sent_message.video.file_id
+
+            if sent_message.video:
+                movie.telegram_file_id = (
+                    sent_message.video.file_id
+                )
 
             chat_link_part = str(channel.chat_id)
 
@@ -309,7 +387,9 @@ def upload_movie(request):
                 chat_link_part = chat_link_part[4:]
 
             movie.telegram_message_link = (
-                f"https://t.me/c/{chat_link_part}/{sent_message.message_id}"
+                f"https://t.me/c/"
+                f"{chat_link_part}/"
+                f"{sent_message.message_id}"
             )
 
             movie.save()
@@ -319,16 +399,15 @@ def upload_movie(request):
                 f"Movie '{movie.title}' uploaded successfully!"
             )
 
-            return redirect('admin_dashboard')
+            return redirect("admin_dashboard")
 
     else:
         form = TelegramMovieUploadForm()
 
     return render(
         request,
-        'admin/upload_movie.html',
+        "admin/upload_movie.html",
         {
-            'form': form
+            "form": form
         }
-    )
-    
+    )    

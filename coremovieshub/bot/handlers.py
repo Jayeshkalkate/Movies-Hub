@@ -62,16 +62,18 @@ def verify_membership(telegram_id, verification_code=None):
         return "invalid_code"
 
 
+# Improved start() function with proper verification code handling
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
 
-    verification_code = context.args[0] if context.args else None
+    raw_code = context.args[0] if context.args else None
+    verification_code = None
 
-    result = await verify_membership(
-        telegram_id,
-        verification_code
-    )
+    if raw_code and raw_code.startswith("verify_"):
+        verification_code = raw_code[7:]   # remove "verify_"
+
+    result = await verify_membership(telegram_id, verification_code)
 
     if result == "verified":
         await update.message.reply_text(
@@ -98,8 +100,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 TITLE, CATEGORY_STATE, YEAR, QUALITY, UPLOAD = range(5)
 
 
+# Improvement 1: Safer admin check
 def user_has_staff_access(user_id):
-    return user_id in settings.TELEGRAM_ADMIN_IDS
+    admin_ids = getattr(settings, "TELEGRAM_ADMIN_IDS", [])
+    return int(user_id) in [int(x) for x in admin_ids]
 
 
 @sync_to_async
@@ -107,9 +111,10 @@ def get_categories():
     return list(Category.objects.order_by("name"))
 
 
+# Improvement 4: Prevent crash if category does not exist
 @sync_to_async
 def get_category(category_id):
-    return Category.objects.get(id=category_id)
+    return Category.objects.filter(id=category_id).first()
 
 
 @sync_to_async
@@ -141,7 +146,6 @@ def save_movie(
 
 
 async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     if not user_has_staff_access(update.effective_user.id):
         await update.message.reply_text(
             "❌ Only administrators can upload movies."
@@ -157,10 +161,7 @@ async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TITLE
 
 
-async def title_received(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["title"] = update.message.text.strip()
 
     categories = await get_categories()
@@ -189,10 +190,7 @@ async def title_received(
     return CATEGORY_STATE
 
 
-async def category_chosen(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def category_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
     await query.answer()
@@ -206,17 +204,19 @@ async def category_chosen(
     return YEAR
 
 
-async def year_received(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+# Improvement 2: Better year validation
+async def year_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     year_text = update.message.text.strip()
 
-    context.user_data["year"] = (
-        int(year_text)
-        if year_text.isdigit()
-        else None
-    )
+    if year_text.isdigit():
+        year = int(year_text)
+
+        if 1900 <= year <= timezone.now().year + 1:
+            context.user_data["year"] = year
+        else:
+            context.user_data["year"] = None
+    else:
+        context.user_data["year"] = None
 
     await update.message.reply_text(
         "🎥 Enter quality (480p / 720p / 1080p / 4K):"
@@ -225,10 +225,7 @@ async def year_received(
     return QUALITY
 
 
-async def quality_received(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def quality_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["quality"] = update.message.text.strip()
 
     await update.message.reply_text(
@@ -238,10 +235,7 @@ async def quality_received(
     return UPLOAD
 
 
-async def video_received(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     video = update.message.video
 
     if not video:
@@ -250,21 +244,17 @@ async def video_received(
         )
         return UPLOAD
 
-    try:
-        category = await get_category(
-            context.user_data["category_id"]
-        )
+    # Improvement 4: Check if category exists
+    category = await get_category(context.user_data["category_id"])
 
-        target_channel = await get_channel_for_category(
-            category
-        )
-
-    except Category.DoesNotExist:
+    if not category:
         await update.message.reply_text(
             "❌ Category not found."
         )
         return ConversationHandler.END
 
+    try:
+        target_channel = await get_channel_for_category(category)
     except TelegramChannel.DoesNotExist:
         await update.message.reply_text(
             "❌ No Telegram channel configured for this category."
@@ -275,9 +265,10 @@ async def video_received(
         "⏳ Uploading movie..."
     )
 
+    # Improvement 3: Handle missing year key safely
     caption = (
         f"🎬 {context.user_data['title']}\n"
-        f"📅 Year: {context.user_data['year'] or 'N/A'}\n"
+        f"📅 Year: {context.user_data.get('year', 'N/A')}\n"
         f"🎥 Quality: {context.user_data['quality']}"
     )
 
@@ -306,7 +297,7 @@ async def video_received(
         message_id=sent_message.message_id,
         file_id=video.file_id,
         message_link=message_link,
-        year=context.user_data["year"],
+        year=context.user_data.get("year"),
         quality=context.user_data["quality"],
     )
 
@@ -320,10 +311,7 @@ async def video_received(
     return ConversationHandler.END
 
 
-async def cancel(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     await update.message.reply_text(
@@ -350,10 +338,7 @@ def search_movie_db(query):
     )
 
 
-async def search_movies(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
             "Usage:\n/search movie_name"
@@ -371,26 +356,18 @@ async def search_movies(
         return
 
     for movie in movies:
-
-        category = (
-            movie.category.name
-            if movie.category
-            else "Unknown"
-        )
-
+        category = movie.category.name if movie.category else "Unknown"
         year = movie.year or "N/A"
         quality = movie.quality or "N/A"
 
-        chat_id = str(movie.channel.chat_id)
-
-        if chat_id.startswith("-100"):
-            chat_id = chat_id[4:]
-
-        message_link = (
-            f"https://t.me/c/"
-            f"{chat_id}/"
-            f"{movie.telegram_message_id}"
-        )
+        # Improvement 5: Prefer stored message link, fallback to constructed one
+        if movie.telegram_message_link:
+            message_link = movie.telegram_message_link
+        else:
+            chat_id = str(movie.channel.chat_id)
+            if chat_id.startswith("-100"):
+                chat_id = chat_id[4:]
+            message_link = f"https://t.me/c/{chat_id}/{movie.telegram_message_id}"
 
         text = (
             f"🎬 *{movie.title}*\n"

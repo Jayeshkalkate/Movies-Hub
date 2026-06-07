@@ -14,15 +14,11 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        value: httpsmovies-hub-6dhp.onrender.com
-      # ... other AWS / Telegram variables (set manually in dashboard)
+        value: movies-hub-6dhp.onrender.com
+      - key: BASE_URL
+        value: https://movies-hub-6dhp.onrender.com   # <-- add this
+      # ... other keys (AWS, TELEGRAM_BOT_TOKEN, MAIN_CHANNEL_ID, TELEGRAM_ADMIN_IDS)
     databases:
       - name: movieshub-db
         databaseName: movieshub
         user: movieshub
-
-  - type: cron
-    name: set-webhook
-    schedule: "0 0 * * *"   # once a day, or just run manually
-    buildCommand: ""
-    startCommand: python manage.py set_webhook
