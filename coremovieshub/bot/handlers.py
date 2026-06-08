@@ -561,7 +561,7 @@ def save_channel_movie(
 
     TelegramMovie.objects.create(
         title=title[:255],
-        slug=slugify(title)[:255],
+        slug=slugify(title)[:300],
         content_type="movie",
         category=channel.category,
         channel=channel,
@@ -610,13 +610,13 @@ async def handle_channel_post(update, context):
                 ).first()
             )()
 
-    print("CHANNEL FOUND ID:", channel.id)
-    print("CHANNEL FOUND NAME:", channel.name)
-    print("CHANNEL CHAT ID:", channel.chat_id)
-
     if not channel:
         print(f"CHANNEL NOT FOUND: {chat_id}")
         return
+
+    print("CHANNEL FOUND ID:", channel.id)
+    print("CHANNEL FOUND NAME:", channel.name)
+    print("CHANNEL CHAT ID:", channel.chat_id)
 
     try:
         title = (
@@ -629,7 +629,7 @@ async def handle_channel_post(update, context):
             TelegramMovie.objects.create
         )(
             title=title[:255],
-            slug=slugify(title)[:255],
+            slug=slugify(title)[:300],
             content_type="movie",
             category=channel.category,
             channel=channel,

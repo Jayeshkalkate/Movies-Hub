@@ -156,6 +156,7 @@ class TelegramMovie(models.Model):
     title = models.CharField(max_length=300)
 
     slug = models.SlugField(
+        max_length=300,
         unique=True,
         blank=True
     )
