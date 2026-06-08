@@ -52,8 +52,18 @@ from asgiref.sync import async_to_sync
 
 @csrf_exempt
 def telegram_webhook(request):
+    """
+    Telegram webhook endpoint.
+    """
+
+    logger.warning("🚀 WEBHOOK HIT")
 
     if request.method != "POST":
+        logger.warning(
+            "❌ Invalid method: %s",
+            request.method
+        )
+
         return JsonResponse(
             {"error": "Method not allowed"},
             status=405
@@ -63,7 +73,21 @@ def telegram_webhook(request):
         "X-Telegram-Bot-Api-Secret-Token"
     )
 
+    logger.warning(
+        "🔑 Received Secret: %s",
+        secret_token
+    )
+
+    logger.warning(
+        "🔑 Expected Secret: %s",
+        settings.TELEGRAM_SECRET
+    )
+
     if secret_token != settings.TELEGRAM_SECRET:
+        logger.error(
+            "❌ Secret token mismatch"
+        )
+
         return JsonResponse(
             {"error": "Unauthorized"},
             status=403
@@ -74,31 +98,56 @@ def telegram_webhook(request):
             request.body.decode("utf-8")
         )
 
+        logger.warning(
+            "📩 Update received: %s",
+            data
+        )
+
+        logger.warning(
+            "⚙️ INITIALISING APPLICATION"
+        )
+
         app = get_application()
+
+        logger.warning(
+            "✅ APPLICATION READY"
+        )
 
         update = Update.de_json(
             data,
             app.bot
         )
 
+        logger.warning(
+            "🔄 PROCESSING UPDATE"
+        )
+
         async_to_sync(
             app.process_update
         )(update)
+
+        logger.warning(
+            "✅ UPDATE PROCESSED SUCCESSFULLY"
+        )
 
         return JsonResponse(
             {"status": "ok"}
         )
 
-    except Exception:
+    except Exception as e:
         logger.exception(
-            "Webhook processing failed."
+            "❌ Webhook processing failed: %s",
+            str(e)
         )
 
         return JsonResponse(
-            {"error": "Internal server error"},
+            {
+                "error": "Internal server error",
+                "details": str(e)
+            },
             status=500
         )
-                        
+                                
 @staff_member_required
 def admin_dashboard(request):
 
