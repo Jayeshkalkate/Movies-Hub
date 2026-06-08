@@ -12,6 +12,7 @@ from telegram.ext import (
 from django.conf import settings
 from django.utils import timezone
 from asgiref.sync import sync_to_async
+from django.utils.text import slugify
 
 from coremovieshub.models import (
     MembershipVerification,
@@ -547,3 +548,96 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
         
+@sync_to_async
+def save_channel_movie(
+    post,
+    channel
+):
+    title = (
+        post.caption
+        or getattr(post.video, "file_name", None)
+        or "Untitled Movie"
+    )
+
+    TelegramMovie.objects.create(
+        title=title[:255],
+        slug=slugify(title)[:255],
+        category=channel.category,
+        channel=channel,
+        telegram_message_id=post.message_id,
+        telegram_file_id=post.video.file_id,
+        quality="Unknown",
+    )
+    
+async def handle_channel_post(update, context):
+    print("=" * 60)
+    print("CHANNEL HANDLER FIRED")
+
+    post = update.channel_post
+
+    if not post:
+        print("NO CHANNEL POST")
+        return
+
+    print("CHAT ID:", post.chat.id)
+    print("VIDEO:", bool(post.video))
+    print("DOCUMENT:", bool(post.document))
+    print("CAPTION:", post.caption)
+
+    # Accept both Telegram Video and MKV Documents
+    media = post.video or post.document
+
+    if not media:
+        print("NO VIDEO OR DOCUMENT FOUND")
+        return
+
+    if post.document:
+        print("DOCUMENT NAME:", getattr(post.document, "file_name", "Unknown"))
+
+    if post.video:
+        print("VIDEO RECEIVED")
+
+    chat_id = str(post.chat.id)
+
+    channel = await sync_to_async(
+        TelegramChannel.objects.filter(
+            chat_id=chat_id
+        ).first
+    )()
+
+    print("CHANNEL FOUND:", channel)
+
+    if not channel:
+        print(f"CHANNEL NOT FOUND: {chat_id}")
+        return
+
+    try:
+        title = (
+            post.caption
+            or getattr(media, "file_name", None)
+            or "Untitled Movie"
+        )
+
+        await sync_to_async(
+            TelegramMovie.objects.create
+        )(
+            title=title[:255],
+            slug=slugify(title)[:255],
+            content_type="movie",
+            category=channel.category,
+            channel=channel,
+            telegram_message_id=post.message_id,
+            telegram_file_id=media.file_id,
+            quality="Unknown",
+        )
+
+        print("✅ MOVIE SAVED SUCCESSFULLY")
+
+    except Exception as e:
+        import traceback
+
+        print("❌ SAVE ERROR:", str(e))
+        traceback.print_exc()
+
+    print("=" * 60)
+    

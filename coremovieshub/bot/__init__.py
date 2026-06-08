@@ -2,6 +2,7 @@
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
+from .handlers import handle_channel_post
 
 from telegram.ext import (
     ApplicationBuilder,
@@ -98,6 +99,13 @@ def setup_bot():
     )
 
     application.add_handler(conv_handler)
+    
+    application.add_handler(
+        MessageHandler(
+            filters.ChatType.CHANNEL,
+            handle_channel_post
+            )
+        )
 
     return application
 
