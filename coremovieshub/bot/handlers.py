@@ -547,15 +547,15 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )
-        
+
+from asgiref.sync import sync_to_async
+from django.utils.text import slugify
+
 @sync_to_async
-def save_channel_movie(
-    post,
-    channel
-):
+def save_channel_movie(post, channel, media, message_link):
     title = (
         post.caption
-        or getattr(post.video, "file_name", None)
+        or getattr(media, "file_name", None)
         or "Untitled Movie"
     )
 
@@ -566,11 +566,13 @@ def save_channel_movie(
         category=channel.category,
         channel=channel,
         telegram_message_id=post.message_id,
-        telegram_file_id=post.video.file_id,
+        telegram_file_id=media.file_id,
+        telegram_message_link=message_link,
         quality="Unknown",
         description=post.caption or "",
-        )
-    
+    )
+
+
 async def handle_channel_post(update, context):
     print("=" * 60)
     print("CHANNEL HANDLER FIRED")
@@ -586,7 +588,7 @@ async def handle_channel_post(update, context):
     print("DOCUMENT:", bool(post.document))
     print("CAPTION:", post.caption)
 
-    # Accept both Telegram Video and MKV Documents
+    # Support both videos and MKV documents
     media = post.video or post.document
 
     if not media:
@@ -594,7 +596,10 @@ async def handle_channel_post(update, context):
         return
 
     if post.document:
-        print("DOCUMENT NAME:", getattr(post.document, "file_name", "Unknown"))
+        print(
+            "DOCUMENT NAME:",
+            getattr(post.document, "file_name", "Unknown")
+        )
 
     if post.video:
         print("VIDEO RECEIVED")
@@ -603,12 +608,11 @@ async def handle_channel_post(update, context):
 
     channel = await sync_to_async(
         lambda: TelegramChannel.objects.select_related(
-            
             "category"
-            ).filter(
-                chat_id=chat_id
-                ).first()
-            )()
+        ).filter(
+            chat_id=chat_id
+        ).first()
+    )()
 
     if not channel:
         print(f"CHANNEL NOT FOUND: {chat_id}")
@@ -620,30 +624,52 @@ async def handle_channel_post(update, context):
 
     try:
         caption = post.caption or ""
-        
+
         title = (
             caption.split("\n")[0]
             .replace("🎬", "")
             .strip()
-            )
-        
-        if not title:
-            title = getattr(media, "file_name", None) or "Untitled Movie"
+        )
 
-        await sync_to_async(
-            TelegramMovie.objects.create
-        )(
-            title=title[:255],
-            slug=slugify(title)[:300],
-            content_type="movie",
-            category=channel.category,
-            channel=channel,
-            telegram_message_id=post.message_id,
-            telegram_file_id=media.file_id,
-            quality="Unknown",
+        if not title:
+            title = (
+                getattr(media, "file_name", None)
+                or "Untitled Movie"
+            )
+
+        # Build Telegram message link
+        chat_id_for_link = str(post.chat.id)
+
+        if chat_id_for_link.startswith("-100"):
+            chat_id_for_link = chat_id_for_link[4:]
+
+        message_link = (
+            f"https://t.me/c/"
+            f"{chat_id_for_link}/"
+            f"{post.message_id}"
+        )
+
+        # Prevent duplicate entries
+        exists = await sync_to_async(
+            TelegramMovie.objects.filter(
+                channel=channel,
+                telegram_message_id=post.message_id
+            ).exists
+        )()
+
+        if exists:
+            print("⚠ MOVIE ALREADY EXISTS")
+            return
+
+        await save_channel_movie(
+            post,
+            channel,
+            media,
+            message_link
         )
 
         print("✅ MOVIE SAVED SUCCESSFULLY")
+        print("MESSAGE LINK:", message_link)
 
     except Exception as e:
         import traceback
@@ -652,4 +678,3 @@ async def handle_channel_post(update, context):
         traceback.print_exc()
 
     print("=" * 60)
-    

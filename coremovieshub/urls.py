@@ -65,11 +65,6 @@ path(
     name="admin_dashboard"
 ),
 path(
-    "admin/movies/edit/<int:movie_id>/",
-    views.edit_movie,
-    name="edit_movie"
-),
-path(
     "watchlist/",
     views.my_watchlist,
     name="my_watchlist"
@@ -87,7 +82,12 @@ path(
     name="remove_from_watchlist"
 ),
 path(
-    "admin/movies/delete/<int:movie_id>/",
+    "dashboard/movies/edit/<int:movie_id>/",
+    views.edit_movie,
+    name="edit_movie"
+),
+path(
+    "dashboard/movies/delete/<int:movie_id>/",
     views.delete_movie,
     name="delete_movie"
 ),
