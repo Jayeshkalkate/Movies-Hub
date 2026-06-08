@@ -619,11 +619,16 @@ async def handle_channel_post(update, context):
     print("CHANNEL CHAT ID:", channel.chat_id)
 
     try:
+        caption = post.caption or ""
+        
         title = (
-            post.caption
-            or getattr(media, "file_name", None)
-            or "Untitled Movie"
-        )
+            caption.split("\n")[0]
+            .replace("🎬", "")
+            .strip()
+            )
+        
+        if not title:
+            title = getattr(media, "file_name", None) or "Untitled Movie"
 
         await sync_to_async(
             TelegramMovie.objects.create
