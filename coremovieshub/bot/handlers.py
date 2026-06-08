@@ -29,6 +29,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+REQUIRED_CHANNELS = [
+    settings.MAIN_CHANNEL_ID,
+]
+
 # =====================================================
 # MEMBERSHIP VERIFICATION
 # =====================================================
@@ -44,6 +48,12 @@ def verify_membership(telegram_id, verification_code=None):
             )
 
             verification.telegram_id = str(telegram_id)
+            verification.telegram_username = (
+                f"@{verification.user.username}"
+                if verification.user
+                else ""
+                )
+            
             verification.save()
 
             if check_telegram_membership(telegram_id):
@@ -84,7 +94,10 @@ def verify_membership(telegram_id, verification_code=None):
         print(f"Membership verification error: {e}")
         return "error"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
     user = update.effective_user
 
     if not user:
@@ -97,26 +110,81 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         telegram_id
     )
 
-    raw_code = context.args[0].strip() if context.args else None
+    raw_code = (
+        context.args[0].strip()
+        if context.args
+        else None
+    )
+
     verification_code = None
 
+    logger.info(
+        "Raw start parameter received: %s",
+        raw_code
+    )
+
+    # =====================================================
+    # VERIFICATION DEEP LINK
+    # =====================================================
     if raw_code and raw_code.startswith("verify_"):
-        verification_code = raw_code[7:]
+
+        verification_code = raw_code.replace(
+            "verify_",
+            "",
+            1
+        ).strip()
 
         logger.info(
-            "Verification code detected: %s",
+            "Verification code extracted: %s",
             verification_code
         )
 
-    # Normal /start without deep-link
+    # =====================================================
+    # NORMAL /START
+    # =====================================================
     elif not raw_code:
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🌐 Open Website",
+                    url=settings.BASE_URL
+                )
+            ]
+        ]
+
         await update.message.reply_text(
-            "👋 Welcome to MovieHub!\n\n"
-            "Please use the verification link from the website."
+            "🎬 Welcome to MovieHub!\n\n"
+            "To access movies:\n"
+            "1️⃣ Register on website\n"
+            "2️⃣ Login\n"
+            "3️⃣ Verify Telegram\n"
+            "4️⃣ Join required channels\n"
+            "5️⃣ Start watching movies",
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            )
         )
+
         return
 
+    # =====================================================
+    # INVALID PARAMETER
+    # =====================================================
+    else:
+
+        await update.message.reply_text(
+            "⚠️ Invalid verification link.\n\n"
+            "Please return to MovieHub and generate a new verification link."
+        )
+
+        return
+
+    # =====================================================
+    # VERIFY MEMBERSHIP
+    # =====================================================
     try:
+
         result = await verify_membership(
             telegram_id,
             verification_code
@@ -129,35 +197,53 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if result == "verified":
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "🎬 Open MovieHub",
+                        url=settings.BASE_URL
+                        )
+                    ]
+                ]
+            
             await update.message.reply_text(
-                "✅ Your MovieHub account has been verified successfully!\n\n"
-                "🎬 You can now access all content on the website."
-            )
+                "✅ Account verified successfully!\n\n"
+                "You can now return to MovieHub and continue.",
+                reply_markup=InlineKeyboardMarkup(
+                    keyboard
+                    )
+                )
 
         elif result == "not_member":
+
             await update.message.reply_text(
                 "❌ Verification failed.\n\n"
                 "Please join the required Telegram channel and try again."
             )
 
         elif result == "invalid_code":
+
             await update.message.reply_text(
                 "⚠️ Invalid or expired verification link.\n\n"
                 "Please return to MovieHub and generate a new verification link."
             )
 
         elif result == "verification_not_found":
+
             await update.message.reply_text(
                 "⚠️ Verification record not found."
             )
 
         else:
+
             await update.message.reply_text(
                 "⚠️ Verification could not be completed.\n\n"
                 "Please try again later."
             )
 
     except Exception as e:
+
         logger.exception(
             "Error during verification for Telegram ID %s: %s",
             telegram_id,

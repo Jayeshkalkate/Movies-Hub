@@ -78,6 +78,12 @@ class MembershipVerification(models.Model):
         blank=True,
         null=True
     )
+    
+    telegram_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
 
     membership_status = models.BooleanField(default=False)
 

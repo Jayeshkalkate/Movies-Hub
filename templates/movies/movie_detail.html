@@ -24,3 +24,26 @@ Quality:
     Watch on Telegram
 </a>
 {% endif %}
+
+{% if is_verified %}
+    <a href="{% url 'watch_movie' movie.id %}"
+       class="btn btn-success">
+       Watch Now
+    </a>
+
+    <a href="{% url 'download_movie' movie.id %}"
+       class="btn btn-primary">
+       Download
+    </a>
+{% else %}
+    <div class="alert alert-warning">
+        Please verify your Telegram account and join
+        the required channels to watch or download
+        this content.
+    </div>
+
+    <a href="{% url 'verify_telegram' %}"
+       class="btn btn-warning">
+       Verify Telegram
+    </a>
+{% endif %}

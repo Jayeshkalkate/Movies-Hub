@@ -366,7 +366,6 @@ if not DEBUG and not MAIN_CHANNEL_ID:
         "MAIN_CHANNEL_ID environment variable is required."
     )
 
-AUTH_USER_MODEL = "coremovieshub.CustomUser"
 
 # --------------------------------------------------
 # Security Improvements

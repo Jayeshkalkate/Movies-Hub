@@ -134,6 +134,13 @@ def movie_detail(request, movie_id):
         id=movie_id
     )
 
+    # Get user's verification status
+    verification, created = (
+        MembershipVerification.objects.get_or_create(
+            user=request.user
+        )
+    )
+
     # Increment view count atomically
     TelegramMovie.objects.filter(
         id=movie.id
@@ -147,10 +154,11 @@ def movie_detail(request, movie_id):
         request,
         "movies/movie_detail.html",
         {
-            "movie": movie
+            "movie": movie,
+            "is_verified": verification.membership_status,
         }
     )
-    
+        
 @login_required
 def category_movies(request, slug):
 
