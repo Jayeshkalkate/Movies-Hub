@@ -92,12 +92,12 @@ path(
     name="delete_movie"
 ),
 path(
-    "admin/movies/",
+    "dashboard/movies/",
     views.movie_management,
     name="movie_management"
 ),
 path(
-    'admin/upload-movie/',
+    "dashboard/upload-movie/",
     views.upload_movie,
     name='upload_movie'
 ),

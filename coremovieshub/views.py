@@ -86,9 +86,14 @@ def watch_movie(request, movie_id):
             "verify_telegram"
         )
 
-    return redirect(
-        movie.telegram_message_link
-    )
+    if not movie.telegram_message_link:
+        messages.error(
+            request,
+            "Telegram link is not available."
+            )
+        return redirect("movie_detail", movie_id=movie.id)
+    
+    return redirect(movie.telegram_message_link)
 
 @login_required
 def download_movie(request, movie_id):
@@ -114,9 +119,14 @@ def download_movie(request, movie_id):
             "verify_telegram"
         )
 
-    return redirect(
-        movie.telegram_message_link
-    )
+    if not movie.telegram_message_link:
+        messages.error(
+            request,
+            "Telegram link is not available."
+            )
+        return redirect("movie_detail", movie_id=movie.id)
+    
+    return redirect(movie.telegram_message_link)
         
 @csrf_exempt
 def telegram_webhook(request):
