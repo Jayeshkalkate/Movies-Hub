@@ -562,12 +562,14 @@ def save_channel_movie(
     TelegramMovie.objects.create(
         title=title[:255],
         slug=slugify(title)[:255],
+        content_type="movie",
         category=channel.category,
         channel=channel,
         telegram_message_id=post.message_id,
         telegram_file_id=post.video.file_id,
         quality="Unknown",
-    )
+        description=post.caption or "",
+        )
     
 async def handle_channel_post(update, context):
     print("=" * 60)
@@ -600,12 +602,17 @@ async def handle_channel_post(update, context):
     chat_id = str(post.chat.id)
 
     channel = await sync_to_async(
-        TelegramChannel.objects.filter(
-            chat_id=chat_id
-        ).first
-    )()
+        lambda: TelegramChannel.objects.select_related(
+            
+            "category"
+            ).filter(
+                chat_id=chat_id
+                ).first()
+            )()
 
-    print("CHANNEL FOUND:", channel)
+    print("CHANNEL FOUND ID:", channel.id)
+    print("CHANNEL FOUND NAME:", channel.name)
+    print("CHANNEL CHAT ID:", channel.chat_id)
 
     if not channel:
         print(f"CHANNEL NOT FOUND: {chat_id}")
