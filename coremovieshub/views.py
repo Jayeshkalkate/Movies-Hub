@@ -5,7 +5,10 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
+from django.core.paginator import Paginator
 import asyncio
+from django.db.models import Q
+from django.http import HttpResponseForbidden
 from .bot import get_application
 from django.shortcuts import (
     render,
@@ -48,8 +51,62 @@ from telegram import Update
 
 logger = logging.getLogger(__name__)
 
-from asgiref.sync import async_to_sync
+@login_required
+def watch_movie(request, movie_id):
 
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    verification, created = (
+        MembershipVerification.objects.get_or_create(
+            user=request.user
+        )
+    )
+
+    if not verification.membership_status:
+        messages.warning(
+            request,
+            "Please verify your Telegram account first."
+        )
+
+        return redirect(
+            "verify_telegram"
+        )
+
+    return redirect(
+        movie.telegram_message_link
+    )
+
+@login_required
+def download_movie(request, movie_id):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    verification, created = (
+        MembershipVerification.objects.get_or_create(
+            user=request.user
+        )
+    )
+
+    if not verification.membership_status:
+        messages.warning(
+            request,
+            "Please verify your Telegram account first."
+        )
+
+        return redirect(
+            "verify_telegram"
+        )
+
+    return redirect(
+        movie.telegram_message_link
+    )
+        
 @csrf_exempt
 def telegram_webhook(request):
     """
@@ -147,28 +204,31 @@ def telegram_webhook(request):
             },
             status=500
         )
-                                
+
+
 @staff_member_required
 def admin_dashboard(request):
 
-    stats = cache.get("admin_dashboard_stats")
+    stats = {
+        "total_movies": TelegramMovie.objects.count(),
+        "total_categories": Category.objects.count(),
+        "total_channels": TelegramChannel.objects.count(),
+        "verified_users": MembershipVerification.objects.filter(
+            membership_status=True
+        ).count(),
 
-    if not stats:
-        stats = {
-            "total_movies": TelegramMovie.objects.count(),
-            "total_categories": Category.objects.count(),
-            "total_channels": TelegramChannel.objects.count(),
-            "verified_users": MembershipVerification.objects.filter(
-                membership_status=True
-            ).count(),
-        }
+        "latest_movies": TelegramMovie.objects.select_related(
+            "category"
+        ).order_by("-created_at")[:10],
 
-        # Cache for 5 minutes
-        cache.set(
-            "admin_dashboard_stats",
-            stats,
-            timeout=300
-        )
+        "top_movies": TelegramMovie.objects.order_by(
+            "-views"
+        )[:10],
+
+        "unverified_users": MembershipVerification.objects.filter(
+            membership_status=False
+        ).count(),
+    }
 
     return render(
         request,
@@ -176,6 +236,62 @@ def admin_dashboard(request):
         stats
     )
 
+@staff_member_required
+def edit_movie(request, movie_id):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    return render(
+        request,
+        "admin/edit_movie.html",
+        {
+            "movie": movie
+        }
+    )
+
+
+@staff_member_required
+def delete_movie(request, movie_id):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    movie.delete()
+
+    messages.success(
+        request,
+        "Movie deleted successfully."
+    )
+
+    return redirect(
+        "movie_management"
+    )
+    
+@staff_member_required
+def movie_management(request):
+
+    movies = (
+        TelegramMovie.objects
+        .select_related(
+            "category",
+            "channel"
+        )
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "admin/movie_management.html",
+        {
+            "movies": movies
+        }
+    )
+    
 @login_required
 def movie_detail(request, movie_id):
     movie = get_object_or_404(
@@ -216,41 +332,63 @@ def category_movies(request, slug):
         slug=slug
     )
 
-    movies = TelegramMovie.objects.filter(
-        category=category
+    movies = (
+        TelegramMovie.objects
+        .filter(category=category)
+        .select_related("category", "channel")
+        .order_by("-created_at")
     )
+
+    paginator = Paginator(movies, 24)
+
+    page_number = request.GET.get("page")
+
+    page_obj = paginator.get_page(page_number)
 
     return render(
         request,
         "movies/category_movies.html",
         {
             "category": category,
-            "movies": movies
+            "movies": page_obj,
+            "page_obj": page_obj,
         }
     )
     
 @login_required
 def search_movies(request):
-    query = request.GET.get("q", "")
-    
-    movies = TelegramMovie.objects.none()
+
+    query = request.GET.get("q", "").strip()
+
+    movies = (
+        TelegramMovie.objects
+        .select_related("category", "channel")
+        .order_by("-created_at")
+    )
 
     if query:
-        movies = (
-            TelegramMovie.objects
-            .select_related("category", "channel")
-            .filter(title__icontains=query)
-        ).select_related(
-            "category",
-            "channel"
+        movies = movies.filter(
+            Q(title__icontains=query) |
+            Q(description__icontains=query) |
+            Q(language__icontains=query) |
+            Q(quality__icontains=query) |
+            Q(year__icontains=query) |
+            Q(category__name__icontains=query)
         )
+
+    paginator = Paginator(movies, 24)
+
+    page_number = request.GET.get("page")
+
+    page_obj = paginator.get_page(page_number)
 
     return render(
         request,
         "movies/search_results.html",
         {
             "query": query,
-            "movies": movies
+            "page_obj": page_obj,
+            "movies": page_obj,
         }
     )
 

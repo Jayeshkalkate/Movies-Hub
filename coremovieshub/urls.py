@@ -32,6 +32,32 @@ path('verify/', views.verify_telegram, name='verify_telegram'),
 path('check-verification/', views.check_verification, name='check_verification'),
 path("webhook/", views.telegram_webhook, name="telegram_webhook"),
 path(
+    "watch/<int:movie_id>/",
+    views.watch_movie,
+    name="watch_movie"
+),
+
+path(
+    "download/<int:movie_id>/",
+    views.download_movie,
+    name="download_movie"
+),
+path(
+    "admin/movies/edit/<int:movie_id>/",
+    views.edit_movie,
+    name="edit_movie"
+),
+path(
+    "admin/movies/delete/<int:movie_id>/",
+    views.delete_movie,
+    name="delete_movie"
+),
+path(
+    "admin/movies/",
+    views.movie_management,
+    name="movie_management"
+),
+path(
     "search/",
     views.search_movies,
     name="search_movies"

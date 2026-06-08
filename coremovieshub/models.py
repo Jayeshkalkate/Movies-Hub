@@ -138,7 +138,7 @@ class TelegramChannel(models.Model):
 # =====================================================
 
 class TelegramMovie(models.Model):
-
+    
     CONTENT_TYPES = (
         ("movie", "Movie"),
         ("series", "Series"),
@@ -275,17 +275,20 @@ class TelegramMovie(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)
-
+    
     class Meta:
+        
         ordering = ["-created_at"]
-
+        
         indexes = [
             models.Index(fields=["title"]),
             models.Index(fields=["year"]),
+            models.Index(fields=["quality"]),
             models.Index(fields=["language"]),
             models.Index(fields=["content_type"]),
             models.Index(fields=["is_featured"]),
-        ]
+            models.Index(fields=["created_at"]),
+            ]
 
     def save(self, *args, **kwargs):
         if not self.slug:

@@ -19,12 +19,6 @@ Quality:
 <img src="{{ movie.poster.url }}" width="250">
 {% endif %}
 
-{% if movie.telegram_message_link %}
-<a href="{{ movie.telegram_message_link }}">
-    Watch on Telegram
-</a>
-{% endif %}
-
 {% if is_verified %}
     <a href="{% url 'watch_movie' movie.id %}"
        class="btn btn-success">
