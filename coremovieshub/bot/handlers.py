@@ -552,27 +552,69 @@ from asgiref.sync import sync_to_async
 from django.utils.text import slugify
 
 @sync_to_async
-def save_channel_movie(post, channel, media, message_link):
+def save_channel_movie(post, channel, media):
     title = (
         post.caption
         or getattr(media, "file_name", None)
         or "Untitled Movie"
     )
 
+    chat_id = str(channel.chat_id)
+
+    if chat_id.startswith("-100"):
+        chat_id = chat_id[4:]
+
+    message_link = (
+        f"https://t.me/c/{chat_id}/{post.message_id}"
+    )
+
+    print(
+        "MESSAGE ID:",
+        post.message_id
+    )
+
+    print(
+        "CHANNEL ID:",
+        channel.chat_id
+    )
+
+    print(
+        "MESSAGE LINK:",
+        message_link
+    )
+
+    existing = TelegramMovie.objects.filter(
+        telegram_message_id=post.message_id,
+        channel=channel
+    ).exists()
+
+    if existing:
+        print(
+            "Movie already exists:",
+            post.message_id
+        )
+        return
+
     TelegramMovie.objects.create(
         title=title[:255],
         slug=slugify(title)[:300],
+
         content_type="movie",
         category=channel.category,
         channel=channel,
+
         telegram_message_id=post.message_id,
         telegram_file_id=media.file_id,
         telegram_message_link=message_link,
+
         quality="Unknown",
         description=post.caption or "",
     )
 
-
+    print(
+        "MOVIE SAVED SUCCESSFULLY"
+    )
+        
 async def handle_channel_post(update, context):
     print("=" * 60)
     print("CHANNEL HANDLER FIRED")
@@ -664,9 +706,8 @@ async def handle_channel_post(update, context):
         await save_channel_movie(
             post,
             channel,
-            media,
-            message_link
-        )
+            media
+            )
 
         print("✅ MOVIE SAVED SUCCESSFULLY")
         print("MESSAGE LINK:", message_link)

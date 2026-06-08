@@ -277,9 +277,7 @@ class TelegramMovie(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        
         ordering = ["-created_at"]
-        
         indexes = [
             models.Index(fields=["title"]),
             models.Index(fields=["year"]),
@@ -289,7 +287,17 @@ class TelegramMovie(models.Model):
             models.Index(fields=["is_featured"]),
             models.Index(fields=["created_at"]),
             ]
-
+        
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "telegram_message_id",
+                    "channel"
+                    ],
+                name="unique_channel_message"
+                )
+            ]
+    
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.title)

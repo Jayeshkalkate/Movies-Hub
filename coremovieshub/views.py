@@ -53,6 +53,7 @@ from .telegram_utils import (
 from django.core.cache import cache
 
 # coremovieshub/views.py (add at the bottom)
+from django.http import HttpResponseRedirect
 import json
 from asgiref.sync import async_to_sync
 from django.http import JsonResponse
@@ -87,13 +88,21 @@ def watch_movie(request, movie_id):
         )
 
     if not movie.telegram_message_link:
+
         messages.error(
             request,
             "Telegram link is not available."
-            )
-        return redirect("movie_detail", movie_id=movie.id)
-    
-    return redirect(movie.telegram_message_link)
+        )
+
+        return redirect(
+            "movie_detail",
+            movie_id=movie.id
+        )
+
+    return HttpResponseRedirect(
+        movie.telegram_message_link
+    )
+
 
 @login_required
 def download_movie(request, movie_id):
@@ -120,13 +129,20 @@ def download_movie(request, movie_id):
         )
 
     if not movie.telegram_message_link:
+
         messages.error(
             request,
             "Telegram link is not available."
-            )
-        return redirect("movie_detail", movie_id=movie.id)
-    
-    return redirect(movie.telegram_message_link)
+        )
+
+        return redirect(
+            "movie_detail",
+            movie_id=movie.id
+        )
+
+    return HttpResponseRedirect(
+        movie.telegram_message_link
+    )
         
 @csrf_exempt
 def telegram_webhook(request):
