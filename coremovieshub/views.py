@@ -7,6 +7,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
 from django.core.paginator import Paginator
 import asyncio
+from django.utils import timezone
+from datetime import timedelta
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 from .bot import get_application
@@ -15,9 +17,17 @@ from django.shortcuts import (
     redirect,
     get_object_or_404,
 )
-
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import F
+from django.shortcuts import (
+    get_object_or_404,
+    redirect,
+    render,
+)
 from .forms import (
     TelegramMovieUploadForm,
+    TelegramMovieEditForm,
     CustomUserCreationForm,
     CustomUserChangeForm,
     CategoryForm,
@@ -25,6 +35,7 @@ from .forms import (
 
 from .models import (
     Video,
+    WatchList,
     Category,
     MembershipVerification,
     TelegramMovie,
@@ -205,6 +216,73 @@ def telegram_webhook(request):
             status=500
         )
 
+@login_required
+def my_watchlist(request):
+
+    watchlist = (
+        WatchList.objects
+        .filter(user=request.user)
+        .select_related(
+            "movie",
+            "movie__category"
+        )
+        .order_by("-added_at")
+    )
+
+    return render(
+        request,
+        "movies/watchlist.html",
+        {
+            "watchlist": watchlist
+        }
+    )
+    
+@login_required
+def add_to_watchlist(
+    request,
+    movie_id
+):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    WatchList.objects.get_or_create(
+        user=request.user,
+        movie=movie
+    )
+
+    messages.success(
+        request,
+        "Added to watchlist."
+    )
+
+    return redirect(
+        "movie_detail",
+        movie_id=movie.id
+    )
+
+@login_required
+def remove_from_watchlist(
+    request,
+    movie_id
+):
+
+    WatchList.objects.filter(
+        user=request.user,
+        movie_id=movie_id
+    ).delete()
+
+    messages.success(
+        request,
+        "Removed from watchlist."
+    )
+
+    return redirect(
+        "my_watchlist"
+    )
+
 
 @staff_member_required
 def admin_dashboard(request):
@@ -235,7 +313,39 @@ def admin_dashboard(request):
         "dashboard/admin_dashboard.html",
         stats
     )
+    
+def verification_expired(verification):
+    if not verification.verified_at:
+        return True
 
+    return (
+        timezone.now() - verification.verified_at
+    ) > timedelta(days=7)
+
+@staff_member_required
+def movie_management(request):
+
+    movies = (
+        TelegramMovie.objects
+        .select_related("category", "channel")
+        .order_by("-created_at")
+    )
+
+    paginator = Paginator(movies, 25)
+
+    page_number = request.GET.get("page")
+
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "admin/movie_management.html",
+        {
+            "movies": page_obj,
+            "page_obj": page_obj,
+        }
+    )
+    
 @staff_member_required
 def edit_movie(request, movie_id):
 
@@ -244,15 +354,42 @@ def edit_movie(request, movie_id):
         id=movie_id
     )
 
+    if request.method == "POST":
+
+        form = TelegramMovieEditForm(
+            request.POST,
+            request.FILES,
+            instance=movie
+        )
+
+        if form.is_valid():
+
+            form.save()
+
+            messages.success(
+                request,
+                "Movie updated successfully."
+            )
+
+            return redirect(
+                "movie_management"
+            )
+
+    else:
+
+        form = TelegramMovieEditForm(
+            instance=movie
+        )
+
     return render(
         request,
         "admin/edit_movie.html",
         {
+            "form": form,
             "movie": movie
         }
     )
-
-
+    
 @staff_member_required
 def delete_movie(request, movie_id):
 
@@ -261,34 +398,29 @@ def delete_movie(request, movie_id):
         id=movie_id
     )
 
-    movie.delete()
+    if request.method == "POST":
 
-    messages.success(
-        request,
-        "Movie deleted successfully."
-    )
+        if movie.poster:
+            movie.poster.delete(
+                save=False
+            )
 
-    return redirect(
-        "movie_management"
-    )
-    
-@staff_member_required
-def movie_management(request):
+        movie.delete()
 
-    movies = (
-        TelegramMovie.objects
-        .select_related(
-            "category",
-            "channel"
+        messages.success(
+            request,
+            "Movie deleted successfully."
         )
-        .order_by("-created_at")
-    )
+
+        return redirect(
+            "movie_management"
+        )
 
     return render(
         request,
-        "admin/movie_management.html",
+        "admin/delete_movie.html",
         {
-            "movies": movies
+            "movie": movie
         }
     )
     
@@ -305,6 +437,22 @@ def movie_detail(request, movie_id):
             user=request.user
         )
     )
+
+    # Force re-verification every 7 days
+    if (
+        not verification.membership_status
+        or verification_expired(
+            verification
+        )
+    ):
+        messages.warning(
+            request,
+            "Please verify Telegram again."
+        )
+
+        return redirect(
+            "verify_telegram"
+        )
 
     # Increment view count atomically
     TelegramMovie.objects.filter(
@@ -358,22 +506,35 @@ def category_movies(request, slug):
 @login_required
 def search_movies(request):
 
-    query = request.GET.get("q", "").strip()
+    query = request.GET.get("q", "")
 
-    movies = (
-        TelegramMovie.objects
-        .select_related("category", "channel")
-        .order_by("-created_at")
-    )
+    movies = TelegramMovie.objects.none()
 
     if query:
-        movies = movies.filter(
+
+        search_filter = (
             Q(title__icontains=query) |
             Q(description__icontains=query) |
             Q(language__icontains=query) |
             Q(quality__icontains=query) |
-            Q(year__icontains=query) |
+            Q(tags__icontains=query) |
+            Q(content_type__icontains=query) |
+            Q(status__icontains=query) |
             Q(category__name__icontains=query)
+        )
+
+        if query.isdigit():
+            search_filter |= Q(year=int(query))
+
+        movies = (
+            TelegramMovie.objects
+            .select_related(
+                "category",
+                "channel"
+            )
+            .filter(search_filter)
+            .distinct()
+            .order_by("-created_at")
         )
 
     paginator = Paginator(movies, 24)
@@ -387,8 +548,8 @@ def search_movies(request):
         "movies/search_results.html",
         {
             "query": query,
-            "page_obj": page_obj,
             "movies": page_obj,
+            "page_obj": page_obj,
         }
     )
 
@@ -467,15 +628,51 @@ def edit_profile(request):
 
 @login_required
 def video_list(request):
-    # Redirect to verification page if not verified
-    verification = get_object_or_404(MembershipVerification, user=request.user)
-    if not verification.membership_status:
-        messages.warning(request, 'You must verify your Telegram membership to watch videos.')
-        return redirect('verify_telegram')
 
-    # Show Telegram movies (indexed from channels)
-    movies = TelegramMovie.objects.select_related('category', 'channel').all().order_by('-created_at')
-    return render(request, 'videos/video_list.html', {'movies': movies})
+    verification = get_object_or_404(
+        MembershipVerification,
+        user=request.user
+    )
+
+    if (
+        not verification.membership_status
+        or verification_expired(
+            verification
+            )
+        ):
+
+        messages.warning(
+            request,
+            "You must verify your Telegram membership to watch videos."
+        )
+
+        return redirect(
+            "verify_telegram"
+        )
+
+    movies = (
+        TelegramMovie.objects
+        .select_related(
+            "category",
+            "channel"
+        )
+        .order_by("-created_at")
+    )
+
+    paginator = Paginator(movies, 24)
+
+    page_number = request.GET.get("page")
+
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "videos/video_list.html",
+        {
+            "movies": page_obj,
+            "page_obj": page_obj,
+        }
+    )
 
 @staff_member_required
 def add_category(request):

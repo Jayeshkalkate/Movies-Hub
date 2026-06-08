@@ -175,3 +175,75 @@ class TelegramMovieUploadForm(forms.ModelForm):
                 )
 
         return rating
+    
+class TelegramMovieEditForm(forms.ModelForm):
+
+    class Meta:
+        model = TelegramMovie
+
+        fields = [
+            "title",
+            "content_type",
+            "category",
+            "year",
+            "quality",
+            "language",
+            "description",
+            "poster",
+            "duration",
+            "imdb_rating",
+            "season",
+            "episode",
+            "tags",
+            "is_featured",
+            "status",
+        ]
+
+        widgets = {
+            "title": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "content_type": forms.Select(
+                attrs={"class": "form-select"}
+            ),
+            "category": forms.Select(
+                attrs={"class": "form-select"}
+            ),
+            "year": forms.NumberInput(
+                attrs={"class": "form-control"}
+            ),
+            "quality": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "language": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "class": "form-control"
+                }
+            ),
+            "duration": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "imdb_rating": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "step": "0.1"
+                }
+            ),
+            "season": forms.NumberInput(
+                attrs={"class": "form-control"}
+            ),
+            "episode": forms.NumberInput(
+                attrs={"class": "form-control"}
+            ),
+            "tags": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "status": forms.Select(
+                attrs={"class": "form-select"}
+            ),
+        }
+        

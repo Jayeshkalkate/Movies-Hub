@@ -25,6 +25,12 @@ Quality:
        Watch Now
     </a>
 
+    <a
+    href="{% url 'add_to_watchlist' movie.id %}"
+    class="btn btn-warning">
+    ⭐ Add To Watchlist
+    </a>
+
     <a href="{% url 'download_movie' movie.id %}"
        class="btn btn-primary">
        Download

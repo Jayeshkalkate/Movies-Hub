@@ -5,118 +5,155 @@
 <div class="container mt-4">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-
         <h2>Movie Management</h2>
 
-        <a href="{% url 'upload_movie' %}"
-           class="btn btn-success">
+        <a href="{% url 'upload_movie' %}" class="btn btn-success">
             Upload Movie
         </a>
-
     </div>
 
     <div class="card">
-
         <div class="card-body">
 
-            <table class="table table-striped table-hover">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
 
-                <thead>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Poster</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Views</th>
+                            <th>Featured</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
 
-                    <tr>
-                        <th>ID</th>
-                        <th>Poster</th>
-                        <th>Title</th>
-                        <th>Category</th>
-                        <th>Views</th>
-                        <th>Featured</th>
-                        <th>Actions</th>
-                    </tr>
+                    <tbody>
+                        {% for movie in movies %}
+                        <tr>
 
-                </thead>
+                            <td>{{ movie.id }}</td>
 
-                <tbody>
+                            <td>
+                                {% if movie.poster %}
+                                    <img
+                                        src="{{ movie.poster.url }}"
+                                        alt="{{ movie.title }}"
+                                        width="60"
+                                        class="img-thumbnail"
+                                    >
+                                {% endif %}
+                            </td>
 
-                {% for movie in movies %}
+                            <td>{{ movie.title }}</td>
 
-                    <tr>
+                            <td>
+                                {% if movie.category %}
+                                    {{ movie.category.name }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
 
-                        <td>{{ movie.id }}</td>
+                            <td>{{ movie.views }}</td>
 
-                        <td>
+                            <td>
+                                {% if movie.is_featured %}
+                                    <span class="badge bg-success">
+                                        Featured
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        No
+                                    </span>
+                                {% endif %}
+                            </td>
 
-                            {% if movie.poster %}
-                                <img
-                                    src="{{ movie.poster.url }}"
-                                    width="60"
-                                >
-                            {% endif %}
+                            <td>
+                                <a
+                                    href="{% url 'movie_detail' movie.id %}"
+                                    class="btn btn-sm btn-primary">
+                                    View
+                                </a>
 
-                        </td>
+                                <a
+                                    href="{% url 'edit_movie' movie.id %}"
+                                    class="btn btn-sm btn-warning">
+                                    Edit
+                                </a>
 
-                        <td>
-                            {{ movie.title }}
-                        </td>
+                                <a
+                                    href="{% url 'delete_movie' movie.id %}"
+                                    class="btn btn-sm btn-danger"
+                                    onclick="return confirm('Are you sure you want to delete this movie?');">
+                                    Delete
+                                </a>
+                            </td>
 
-                        <td>
-                            {{ movie.category.name }}
-                        </td>
+                        </tr>
 
-                        <td>
-                            {{ movie.views }}
-                        </td>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">
+                                No movies found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
 
-                        <td>
+                </table>
+            </div>
 
-                            {% if movie.is_featured %}
+            {% if page_obj %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
 
-                                <span class="badge bg-success">
-                                    Featured
-                                </span>
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">
+                            First
+                        </a>
+                    </li>
 
-                            {% else %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.previous_page_number }}">
+                            Previous
+                        </a>
+                    </li>
+                    {% endif %}
 
-                                <span class="badge bg-secondary">
-                                    No
-                                </span>
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Page {{ page_obj.number }}
+                            of
+                            {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
 
-                            {% endif %}
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.next_page_number }}">
+                            Next
+                        </a>
+                    </li>
 
-                        </td>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.paginator.num_pages }}">
+                            Last
+                        </a>
+                    </li>
+                    {% endif %}
 
-                        <td>
-
-                            <a
-                               href="{% url 'movie_detail' movie.id %}"
-                               class="btn btn-sm btn-primary">
-                               View
-                            </a>
-
-                        </td>
-
-                    </tr>
-
-                {% empty %}
-
-                    <tr>
-
-                        <td colspan="7"
-                            class="text-center">
-
-                            No movies found
-
-                        </td>
-
-                    </tr>
-
-                {% endfor %}
-
-                </tbody>
-
-            </table>
+                </ul>
+            </nav>
+            {% endif %}
 
         </div>
-
     </div>
 
 </div>

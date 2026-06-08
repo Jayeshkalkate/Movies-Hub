@@ -1,27 +1,61 @@
-<div class="row mb-4">
+{% extends 'base.html' %}
 
-    <div class="col-md-3">
+{% block content %}
 
-        <a
-            href="{% url 'upload_movie' %}"
-            class="btn btn-success w-100">
+<div class="container mt-5">
 
-            Upload Movie
+    <div class="d-flex justify-content-between align-items-center mb-4">
 
-        </a>
+        <h2>Admin Dashboard</h2>
+
+        <div>
+
+            <a href="{% url 'upload_movie' %}"
+               class="btn btn-success">
+                Upload Movie
+            </a>
+
+            <a href="{% url 'movie_management' %}"
+               class="btn btn-primary">
+                Manage Movies
+            </a>
+
+        </div>
 
     </div>
 
-    <div class="col-md-3">
+    <div class="row">
 
-        <a
-            href="{% url 'movie_management' %}"
-            class="btn btn-primary w-100">
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h5>Total Movies</h5>
+                <h2>{{ total_movies }}</h2>
+            </div>
+        </div>
 
-            Manage Movies
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h5>Categories</h5>
+                <h2>{{ total_categories }}</h2>
+            </div>
+        </div>
 
-        </a>
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h5>Channels</h5>
+                <h2>{{ total_channels }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h5>Verified Users</h5>
+                <h2>{{ verified_users }}</h2>
+            </div>
+        </div>
 
     </div>
 
 </div>
+
+{% endblock %}

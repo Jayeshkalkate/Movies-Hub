@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+<h2>My Watchlist</h2>
+
+<div class="row">
+
+{% for item in watchlist %}
+
+<div class="col-md-3">
+
+<div class="card mb-3">
+
+{% if item.movie.poster %}
+<img
+src="{{ item.movie.poster.url }}"
+class="card-img-top">
+{% endif %}
+
+<div class="card-body">
+
+<h5>
+{{ item.movie.title }}
+</h5>
+
+<a
+href="{% url 'movie_detail' item.movie.id %}"
+class="btn btn-primary">
+
+View
+
+</a>
+
+<a
+href="{% url 'remove_from_watchlist' item.movie.id %}"
+class="btn btn-danger">
+
+Remove
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+{% empty %}
+
+<div class="alert alert-info">
+
+Your watchlist is empty.
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</div>
+
+{% endblock %}
