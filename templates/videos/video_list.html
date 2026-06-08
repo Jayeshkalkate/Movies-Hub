@@ -3,175 +3,175 @@
 {% block title %}Movie Library | MovieHub{% endblock %}
 
 {% block content %}
-
 <div class="container py-4">
-
-```
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0">🎬 Movie Library</h1>
-
-    <span class="badge bg-primary fs-6">
-        {{ page_obj.paginator.count|default:movies|length }} Movies
-    </span>
-</div>
-
-{% if movies %}
-
-    <div class="row g-4">
-
-        {% for movie in movies %}
-
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-
-                <div class="card h-100 shadow-sm border-0">
-
-                    {% if movie.poster %}
-                        <img
-                            src="{{ movie.poster.url }}"
-                            class="card-img-top"
-                            alt="{{ movie.title }}"
-                            style="height: 250px; object-fit: cover;"
-                        >
-                    {% else %}
-                        <div
-                            class="bg-secondary text-white d-flex align-items-center justify-content-center"
-                            style="height: 250px;"
-                        >
-                            <div class="text-center">
-                                <h1>🎬</h1>
-                                <small>No Poster</small>
-                            </div>
-                        </div>
-                    {% endif %}
-
-                    <div class="card-body d-flex flex-column">
-
-                        <h5 class="card-title">
-                            {{ movie.title }}
-                        </h5>
-
-                        <p class="card-text text-muted small">
-                            {{ movie.description|truncatewords:15|default:"No description available." }}
-                        </p>
-
-                        <div class="mt-auto">
-
-                            {% if movie.category %}
-                                <span class="badge bg-secondary">
-                                    {{ movie.category.name }}
-                                </span>
-                            {% endif %}
-
-                            {% if movie.year %}
-                                <span class="badge bg-info text-dark">
-                                    {{ movie.year }}
-                                </span>
-                            {% endif %}
-
-                            {% if movie.quality %}
-                                <span class="badge bg-dark">
-                                    {{ movie.quality }}
-                                </span>
-                            {% endif %}
-
-                        </div>
-
-                    </div>
-
-                    <div class="card-footer bg-white">
-
-                        <div class="d-flex justify-content-between align-items-center">
-
-                            <small class="text-muted">
-                                {{ movie.created_at|date:"M d, Y" }}
-                            </small>
-
-                            <small class="text-muted">
-                                👁 {{ movie.views }}
-                            </small>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        {% endfor %}
-
+    <!-- Header with stats and search -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="mb-2 mb-sm-0">
+            <i class="bi bi-film"></i> Movie Library
+        </h1>
+        <div class="d-flex gap-2">
+            <span class="badge bg-primary fs-6">
+                {{ page_obj.paginator.count|default:movies|length }} Movies
+            </span>
+        </div>
     </div>
 
-    {% if page_obj %}
+    <!-- Search & Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Search by title..." value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select name="category" class="form-select">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if request.GET.category|add:"0" == cat.id %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
+    <!-- Movies Grid -->
+    {% if movies %}
+        <div class="row g-4">
+            {% for movie in movies %}
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                    <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden hover-card">
+                        <!-- Poster or placeholder -->
+                        <div class="position-relative">
+                            {% if movie.poster %}
+                                <img src="{{ movie.poster.url }}" class="card-img-top" alt="{{ movie.title }}"
+                                     style="height: 280px; object-fit: cover;"
+                                     onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=No+Poster';">
+                            {% else %}
+                                <div class="bg-secondary text-white d-flex align-items-center justify-content-center"
+                                     style="height: 280px;">
+                                    <div class="text-center">
+                                        <i class="bi bi-camera-reels fs-1"></i>
+                                        <p class="mb-0 small">No Poster</p>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            <!-- Optional: view count overlay -->
+                            <div class="position-absolute bottom-0 end-0 bg-dark bg-opacity-75 text-white px-2 py-1 m-2 rounded-pill small">
+                                <i class="bi bi-eye"></i> {{ movie.views }}
+                            </div>
+                        </div>
+
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title fw-semibold text-truncate">{{ movie.title }}</h5>
+                            <p class="card-text text-muted small mb-3">
+                                {{ movie.description|truncatewords:12|default:"No description available." }}
+                            </p>
+                            <div class="mb-2">
+                                {% if movie.category %}
+                                    <span class="badge bg-info text-dark">{{ movie.category.name }}</span>
+                                {% endif %}
+                                {% if movie.year %}
+                                    <span class="badge bg-secondary">{{ movie.year }}</span>
+                                {% endif %}
+                                {% if movie.quality %}
+                                    <span class="badge bg-dark">{{ movie.quality }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="mt-auto">
+                                <a href="{% url 'movie_detail' movie.id %}" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="bi bi-info-circle"></i> View Details
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-white border-top-0 pt-0 pb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar"></i> {{ movie.created_at|date:"M d, Y"|default:"Recently" }}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-star"></i> Featured? 
+                                    {% if movie.is_featured %}Yes{% else %}No{% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination (improved) -->
+        {% if page_obj and page_obj.paginator.num_pages > 1 %}
         <nav class="mt-5">
-
             <ul class="pagination justify-content-center">
-
                 {% if page_obj.has_previous %}
-
                     <li class="page-item">
-                        <a class="page-link" href="?page=1">
-                            First
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page=1">
+                            <i class="bi bi-chevron-double-left"></i> First
                         </a>
                     </li>
-
                     <li class="page-item">
-                        <a class="page-link"
-                           href="?page={{ page_obj.previous_page_number }}">
-                            Previous
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i> Prev
                         </a>
                     </li>
-
                 {% endif %}
 
-                <li class="page-item active">
-                    <span class="page-link">
-                        Page {{ page_obj.number }}
-                        of
-                        {{ page_obj.paginator.num_pages }}
+                <li class="page-item disabled">
+                    <span class="page-link bg-light">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                     </span>
                 </li>
 
                 {% if page_obj.has_next %}
-
                     <li class="page-item">
-                        <a class="page-link"
-                           href="?page={{ page_obj.next_page_number }}">
-                            Next
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            Next <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
-
                     <li class="page-item">
-                        <a class="page-link"
-                           href="?page={{ page_obj.paginator.num_pages }}">
-                            Last
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.paginator.num_pages }}">
+                            Last <i class="bi bi-chevron-double-right"></i>
                         </a>
                     </li>
-
                 {% endif %}
-
             </ul>
-
         </nav>
-
+        {% endif %}
+    {% else %}
+        <!-- Empty state -->
+        <div class="alert alert-info text-center py-5">
+            <i class="bi bi-collection-play fs-1"></i>
+            <h4 class="mt-2">No Movies Available</h4>
+            <p class="mb-0">Movies will appear here once they are uploaded.</p>
+            <a href="{% url 'movie_management' %}" class="btn btn-sm btn-outline-primary mt-3">Browse later</a>
+        </div>
     {% endif %}
-
-{% else %}
-
-    <div class="alert alert-info text-center py-5">
-
-        <h4>No Movies Available</h4>
-
-        <p class="mb-0">
-            Movies will appear here once they are uploaded.
-        </p>
-
-    </div>
-
-{% endif %}
-```
-
 </div>
 
+<!-- Optional hover effect CSS (consistent with wishlist) -->
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+    }
+    .card-img-top {
+        border-top-left-radius: 1rem;
+        border-top-right-radius: 1rem;
+    }
+</style>
 {% endblock %}

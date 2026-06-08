@@ -43,21 +43,6 @@ path(
     name="download_movie"
 ),
 path(
-    "admin/movies/edit/<int:movie_id>/",
-    views.edit_movie,
-    name="edit_movie"
-),
-path(
-    "admin/movies/delete/<int:movie_id>/",
-    views.delete_movie,
-    name="delete_movie"
-),
-path(
-    "admin/movies/",
-    views.movie_management,
-    name="movie_management"
-),
-path(
     "search/",
     views.search_movies,
     name="search_movies"

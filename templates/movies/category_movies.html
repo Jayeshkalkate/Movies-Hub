@@ -1,76 +1,111 @@
-{% if page_obj %}
+{% extends 'base.html' %}
 
-<nav class="mt-4">
+{% block title %}{{ category.name }} Movies | MovieHub{% endblock %}
 
-    <ul class="pagination justify-content-center">
+{% block content %}
+<div class="container mt-4">
+    <!-- Category Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 fw-bold">
+                <i class="bi bi-tag"></i> {{ category.name }}
+            </h1>
+            <p class="text-muted">
+                {% if page_obj %}
+                    {{ page_obj.paginator.count }} movies in this category
+                {% else %}
+                    Explore movies in {{ category.name }}
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'video_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-grid"></i> All Categories
+        </a>
+    </div>
 
-        {% if page_obj.has_previous %}
+    <!-- Movies Grid -->
+    {% if page_obj %}
+        <div class="row g-4">
+            {% for movie in page_obj %}
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                    <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden hover-card">
+                        <!-- Poster -->
+                        <div class="position-relative">
+                            {% if movie.poster %}
+                                <img src="{{ movie.poster.url }}" class="card-img-top" alt="{{ movie.title }}"
+                                     style="height: 280px; object-fit: cover;"
+                                     onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=No+Poster';">
+                            {% else %}
+                                <div class="bg-secondary text-white d-flex align-items-center justify-content-center"
+                                     style="height: 280px;">
+                                    <div class="text-center">
+                                        <i class="bi bi-camera-reels fs-1"></i>
+                                        <p class="mb-0 small">No Poster</p>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            <!-- View count overlay -->
+                            <div class="position-absolute bottom-0 end-0 bg-dark bg-opacity-75 text-white px-2 py-1 m-2 rounded-pill small">
+                                <i class="bi bi-eye"></i> {{ movie.views }}
+                            </div>
+                        </div>
 
-            <li class="page-item">
-                <a class="page-link" href="?page=1">
-                    First
-                </a>
-            </li>
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title fw-semibold text-truncate">{{ movie.title }}</h5>
+                            <p class="card-text text-muted small mb-3">
+                                {{ movie.description|truncatewords:12|default:"No description available." }}
+                            </p>
+                            <div class="mb-2">
+                                {% if movie.year %}
+                                    <span class="badge bg-secondary">{{ movie.year }}</span>
+                                {% endif %}
+                                {% if movie.quality %}
+                                    <span class="badge bg-dark">{{ movie.quality }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="mt-auto">
+                                <a href="{% url 'movie_detail' movie.id %}" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="bi bi-info-circle"></i> View Details
+                                </a>
+                            </div>
+                        </div>
 
-            <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.previous_page_number }}">
-                    Previous
-                </a>
-            </li>
+                        <div class="card-footer bg-white border-top-0 pt-0 pb-3">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> {{ movie.created_at|date:"M d, Y"|default:"Recently" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
 
-        {% endif %}
+        <!-- Enhanced Pagination -->
+        {% include 'includes/pagination.html' with page_obj=page_obj %}
+        
+    {% else %}
+        <!-- Empty state -->
+        <div class="alert alert-info text-center py-5">
+            <i class="bi bi-folder-x fs-1"></i>
+            <h4 class="mt-2">No movies in this category yet</h4>
+            <p class="mb-0">Check back later or browse other categories.</p>
+            <a href="{% url 'video_list' %}" class="btn btn-sm btn-outline-primary mt-3">Browse All Movies</a>
+        </div>
+    {% endif %}
+</div>
 
-        {% for num in page_obj.paginator.page_range %}
-
-            {% if num == page_obj.number %}
-
-                <li class="page-item active">
-                    <span class="page-link">
-                        {{ num }}
-                    </span>
-                </li>
-
-            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-
-                <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ num }}">
-                        {{ num }}
-                    </a>
-                </li>
-
-            {% endif %}
-
-        {% endfor %}
-
-        {% if page_obj.has_next %}
-
-            <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.next_page_number }}">
-                    Next
-                </a>
-            </li>
-
-            <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.paginator.num_pages }}">
-                    Last
-                </a>
-            </li>
-
-        {% endif %}
-
-    </ul>
-
-    <p class="text-center text-muted small mt-2">
-        Page {{ page_obj.number }}
-        of
-        {{ page_obj.paginator.num_pages }}
-        ({{ page_obj.paginator.count }} total items)
-    </p>
-
-</nav>
-
-{% endif %}
+<!-- Optional hover effect CSS (same as other templates) -->
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+    }
+    .card-img-top {
+        border-top-left-radius: 1rem;
+        border-top-right-radius: 1rem;
+    }
+</style>
+{% endblock %}

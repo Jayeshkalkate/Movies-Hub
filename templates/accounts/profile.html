@@ -1,45 +1,114 @@
-{% extends 'base.html' %} {% block title %}My Profile | MovieHub{% endblock %}
-{% block content %}
-<div class="row">
-  <div class="col-md-8 mx-auto">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <h3 class="mb-0">Your Profile</h3>
-      </div>
-      <div class="card-body">
-        <table class="table table-borderless">
-          <tr>
-            <th style="width: 150px">Username:</th>
-            <td>{{ user.username }}</td>
-          </tr>
-          <tr>
-            <th>Email:</th>
-            <td>{{ user.email }}</td>
-          </tr>
-          <tr>
-            <th>Date joined:</th>
-            <td>{{ user.date_joined|date:"F d, Y" }}</td>
-          </tr>
-          <tr>
-            <th>Last login:</th>
-            <td>{{ user.last_login|date:"F d, Y H:i" }}</td>
-          </tr>
-        </table>
-        <div class="d-flex gap-3 mt-3">
-          <a href="{% url 'edit_profile' %}" class="btn btn-outline-primary"
-            >Edit Profile</a
-          >
-          
-          <form action="{% url 'logout' %}" method="post">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-link nav-link">
-          Logout
-          </button>
-          </form>
+{% extends 'base.html' %}
 
+{% block title %}My Profile | MovieHub{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                <!-- Header with user greeting -->
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-person-circle fs-1 me-3"></i>
+                        <div>
+                            <h3 class="mb-0 fw-bold">Your Profile</h3>
+                            <small>Manage your account information</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <!-- Profile Picture Section (if available) -->
+                    {% if user.profile_picture %}
+                        <div class="text-center mb-4">
+                            <img src="{{ user.profile_picture.url }}" alt="{{ user.username }}" 
+                                 class="rounded-circle img-thumbnail" style="width: 120px; height: 120px; object-fit: cover;">
+                            <h5 class="mt-2">{{ user.get_full_name|default:user.username }}</h5>
+                        </div>
+                    {% else %}
+                        <div class="text-center mb-4">
+                            <div class="rounded-circle bg-secondary bg-opacity-10 d-inline-flex p-3" style="width: 120px; height: 120px;">
+                                <i class="bi bi-person fs-1 m-auto text-secondary"></i>
+                            </div>
+                            <h5 class="mt-2">{{ user.get_full_name|default:user.username }}</h5>
+                        </div>
+                    {% endif %}
+
+                    <!-- User Details Table -->
+                    <div class="table-responsive">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 35%;" class="text-muted">
+                                        <i class="bi bi-person-badge"></i> Username:
+                                    </th>
+                                    <td class="fw-semibold">{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">
+                                        <i class="bi bi-envelope"></i> Email:
+                                    </th>
+                                    <td>{{ user.email }}</td>
+                                </tr>
+                                {% if user.first_name or user.last_name %}
+                                <tr>
+                                    <th class="text-muted">
+                                        <i class="bi bi-person-vcard"></i> Full Name:
+                                    </th>
+                                    <td>{{ user.first_name }} {{ user.last_name }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th class="text-muted">
+                                        <i class="bi bi-calendar-check"></i> Date joined:
+                                    </th>
+                                    <td>{{ user.date_joined|date:"F d, Y" }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">
+                                        <i class="bi bi-clock-history"></i> Last login:
+                                    </th>
+                                    <td>{{ user.last_login|date:"F d, Y H:i" }}</td>
+                                </tr>
+                                {% if user.is_staff %}
+                                <tr>
+                                    <th class="text-muted">
+                                        <i class="bi bi-shield-lock"></i> Role:
+                                    </th>
+                                    <td><span class="badge bg-info text-dark">Administrator</span></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex flex-wrap justify-content-between gap-3 mt-4 pt-2">
+                        <a href="{% url 'edit_profile' %}" class="btn btn-outline-primary px-4">
+                            <i class="bi bi-pencil"></i> Edit Profile
+                        </a>
+                        <form action="{% url 'logout' %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger px-4">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Links (optional) -->
+            <div class="text-center mt-3">
+                <a href="{% url 'movie_management' %}" class="text-decoration-none small">
+                    <i class="bi bi-film"></i> Browse Movies
+                </a>
+                <span class="mx-2 text-muted">|</span>
+                <a href="{% url 'my_watchlist' %}" class="text-decoration-none small">
+                    <i class="bi bi-bookmark-heart"></i> My Watchlist
+                </a>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 {% endblock %}

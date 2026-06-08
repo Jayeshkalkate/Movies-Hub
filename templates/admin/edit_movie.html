@@ -1,35 +1,104 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+            <!-- Card container for the edit form -->
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h2 class="mb-0 fw-bold text-primary">
+                        <i class="bi bi-pencil-square"></i> Edit Movie
+                    </h2>
+                    <p class="text-muted mt-2">Update the movie details below</p>
+                </div>
 
-<div class="container mt-4">
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
 
-    <h2>Edit Movie</h2>
+                        <!-- Loop through form fields and apply Bootstrap styling -->
+                        {% for field in form %}
+                            <div class="mb-4">
+                                <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                                    {{ field.label }}
+                                    {% if field.field.required %}
+                                        <span class="text-danger">*</span>
+                                    {% endif %}
+                                </label>
 
-    <form method="POST"
-          enctype="multipart/form-data">
+                                {% if field.name == 'poster' %}
+                                    <!-- Image preview for poster field -->
+                                    <div class="mb-2">
+                                        {% if instance.poster %}
+                                            <img id="poster-preview" src="{{ instance.poster.url }}" alt="Current poster" class="img-thumbnail rounded" style="max-height: 150px;">
+                                        {% else %}
+                                            <img id="poster-preview" src="#" alt="Poster preview" class="img-thumbnail rounded d-none" style="max-height: 150px;">
+                                        {% endif %}
+                                    </div>
+                                    {{ field }}
+                                {% else %}
+                                    {{ field }}
+                                {% endif %}
 
-        {% csrf_token %}
+                                {% if field.help_text %}
+                                    <div class="form-text text-muted small">{{ field.help_text }}</div>
+                                {% endif %}
+                                {% for error in field.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
 
-        {{ form.as_p }}
-
-        <button
-            type="submit"
-            class="btn btn-success">
-
-            Save Changes
-
-        </button>
-
-        <a href="{% url 'movie_management' %}"
-           class="btn btn-secondary">
-
-           Cancel
-
-        </a>
-
-    </form>
-
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center mt-4 pt-2">
+                            <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary px-4">
+                                <i class="bi bi-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success px-5">
+                                <i class="bi bi-check-lg"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- Optional: JavaScript for live poster preview -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const posterInput = document.querySelector('input[name="poster"]');
+        const previewImg = document.getElementById('poster-preview');
+
+        if (posterInput && previewImg) {
+            posterInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        previewImg.classList.remove('d-none');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // If no file selected, revert to original or hide
+                    if (previewImg.dataset.original) {
+                        previewImg.src = previewImg.dataset.original;
+                    } else {
+                        previewImg.classList.add('d-none');
+                    }
+                }
+            });
+
+            // Store original poster URL if exists
+            if (previewImg.src && previewImg.src !== '#') {
+                previewImg.dataset.original = previewImg.src;
+            }
+        }
+    });
+</script>
+
+<!-- Extra back link removed; already integrated in Cancel button -->
 {% endblock %}

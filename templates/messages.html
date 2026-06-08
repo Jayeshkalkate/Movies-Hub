@@ -1,10 +1,47 @@
 {% if messages %}
     <div class="container mt-3">
         {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm rounded-3 border-0" 
+                 role="alert"
+                 {% if message.tags == 'error' %}style="border-left: 4px solid #dc3545;"{% endif %}
+                 {% if message.tags == 'success' %}style="border-left: 4px solid #198754;"{% endif %}
+                 {% if message.tags == 'warning' %}style="border-left: 4px solid #ffc107;"{% endif %}
+                 {% if message.tags == 'info' %}style="border-left: 4px solid #0dcaf0;"{% endif %}>
+                
+                <!-- Icon based on message type -->
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        {% if message.tags == 'success' %}
+                            <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i>
+                        {% elif message.tags == 'warning' %}
+                            <i class="bi bi-exclamation-circle-fill fs-4 text-warning"></i>
+                        {% else %}
+                            <i class="bi bi-info-circle-fill fs-4 text-info"></i>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        {{ message }}
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             </div>
         {% endfor %}
     </div>
+
+    <!-- Auto-dismiss script (success messages disappear after 3 seconds, others after 5) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                const isSuccess = alert.classList.contains('alert-success');
+                const delay = isSuccess ? 3000 : 5000;
+                setTimeout(function() {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, delay);
+            });
+        });
+    </script>
 {% endif %}
