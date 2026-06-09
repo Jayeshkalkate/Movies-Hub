@@ -146,7 +146,6 @@ def download_movie(request, movie_id):
     return HttpResponseRedirect(
         movie.telegram_message_link
     )
-        
 @csrf_exempt
 def telegram_webhook(request):
     """
@@ -199,14 +198,16 @@ def telegram_webhook(request):
             "📩 Update received: %s",
             data
         )
-        
+
         if "channel_post" in data:
-            logger.warning("🎬 CHANNEL POST DETECTED!")
-            
+            logger.warning(
+                "🎬 CHANNEL POST DETECTED!"
+            )
+
             logger.warning(
                 "📢 Channel Info: %s",
                 data["channel_post"]["chat"]
-                )
+            )
 
         logger.warning(
             "⚙️ INITIALISING APPLICATION"
@@ -227,9 +228,21 @@ def telegram_webhook(request):
             "🔄 PROCESSING UPDATE"
         )
 
-        async_to_sync(
-            app.process_update
-        )(update)
+        try:
+            async_to_sync(
+                app.process_update
+            )(update)
+
+        finally:
+            try:
+                async_to_sync(
+                    app.shutdown
+                )()
+            except Exception as shutdown_error:
+                logger.warning(
+                    "⚠️ Application shutdown failed: %s",
+                    str(shutdown_error)
+                )
 
         logger.warning(
             "✅ UPDATE PROCESSED SUCCESSFULLY"
@@ -252,7 +265,7 @@ def telegram_webhook(request):
             },
             status=500
         )
-
+        
 @login_required
 def my_watchlist(request):
 

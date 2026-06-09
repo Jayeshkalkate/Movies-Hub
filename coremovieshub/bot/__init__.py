@@ -1,6 +1,5 @@
 # coremovieshub/bot/__init__.py
 
-from asgiref.sync import async_to_sync
 from django.conf import settings
 from .handlers import handle_channel_post
 
@@ -12,6 +11,7 @@ from telegram.ext import (
     ConversationHandler,
     filters,
 )
+from asgiref.sync import async_to_sync
 
 from .handlers import (
     start,
@@ -29,9 +29,6 @@ from .handlers import (
     QUALITY,
     UPLOAD,
 )
-
-_app = None
-
 
 def setup_bot():
     application = (
@@ -112,18 +109,12 @@ def setup_bot():
 
 def get_application():
     """
-    Create and initialize the Telegram application only once.
+    Create a fresh PTB Application.
+    Prevents Render's 'Event loop is closed' error.
     """
-    global _app
+    app = setup_bot()
 
-    if _app is None:
-        _app = setup_bot()
+    async_to_sync(app.initialize)()
 
-        # Initialize PTB
-        async_to_sync(_app.initialize)()
-
-        # Start PTB
-        async_to_sync(_app.start)()
-
-    return _app
+    return app
 
