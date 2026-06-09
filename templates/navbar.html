@@ -1,8 +1,18 @@
+{% load static %}
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
     <div class="container">
-        <!-- Brand -->
-        <a class="navbar-brand fw-bold fs-3" href="{% url 'home' %}">
-            🎬 MovieHub
+    
+        <!-- Logo -->
+
+        <a class="navbar-brand d-flex align-items-center" href="/">
+        <img
+        src="{% static 'C:\Projects\movieshub\static\images\movieshublogo.png' %}"
+        alt="MoviesHub Logo"
+        height="45"
+        class="me-2"
+        >
+        <span class="fw-bold text-warning">MoviesHub</span>
         </a>
 
         <!-- Toggler button -->
