@@ -11,7 +11,7 @@ Admin Dashboard | MovieHub
         <h2 class="mb-2 mb-sm-0">
             <i class="bi bi-speedometer2"></i> Admin Dashboard
         </h2>
-        <div class="btn-group" role="group">
+        <div class="btn-group">
             <a href="{% url 'upload_movie' %}" class="btn btn-success">
                 <i class="bi bi-cloud-upload"></i> Upload Movie
             </a>
@@ -120,6 +120,12 @@ Admin Dashboard | MovieHub
                                 <td>{{ movie.created_at|date:"Y-m-d H:i" }}</td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
+
+                                    <a href="{% url 'delete_movie' movie.id %}"
+                                    class="btn btn-outline-danger"
+                                    title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                    </a>
                                         <a href="{% url 'movie_detail' movie.id %}" class="btn btn-outline-primary" title="View">
                                             <i class="bi bi-eye"></i>
                                         </a>
@@ -143,6 +149,120 @@ Admin Dashboard | MovieHub
         </div>
     </div>
 
+<!-- Top Viewed Movies Section -->
+<div class="card shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-semibold">
+            <i class="bi bi-graph-up-arrow"></i>
+            Top Viewed Movies
+        </h5>
+    </div>
+
+    <div class="card-body p-0">
+        {% if top_movies %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Poster</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Views</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for movie in top_movies %}
+                        <tr>
+
+                            <td>
+                                <span class="fw-bold">
+                                    {{ forloop.counter }}
+                                </span>
+                            </td>
+
+                            <td style="width: 80px;">
+                                {% if movie.poster %}
+                                    <img
+                                        src="{{ movie.poster.url }}"
+                                        alt="{{ movie.title }}"
+                                        class="img-thumbnail rounded"
+                                        width="60"
+                                        style="height:75px; object-fit:cover;"
+                                    >
+                                {% else %}
+                                    <span class="text-muted">
+                                        No Image
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td class="fw-semibold">
+                                {{ movie.title }}
+                            </td>
+
+                            <td>
+                                {% if movie.category %}
+                                    <span class="badge bg-info text-dark">
+                                        {{ movie.category.name }}
+                                    </span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <span class="badge bg-success fs-6">
+                                    {{ movie.views }}
+                                </span>
+                            </td>
+
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+
+                                    <a href="{% url 'movie_detail' movie.id %}"
+                                       class="btn btn-outline-primary"
+                                       title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    <a href="{% url 'edit_movie' movie.id %}"
+                                       class="btn btn-outline-warning"
+                                       title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+                                    <a href="{% url 'delete_movie' movie.id %}"
+                                       class="btn btn-outline-danger"
+                                       title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+
+                                </div>
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+        {% else %}
+
+            <div class="text-center py-5">
+                <i class="bi bi-bar-chart fs-1 text-muted"></i>
+                <p class="mt-3 mb-0">
+                    No view statistics available yet.
+                </p>
+            </div>
+
+        {% endif %}
+    </div>
+</div>
+
     <!-- Quick Actions Row (extra shortcuts) -->
     <div class="row g-3">
         <div class="col-md-4">
@@ -164,7 +284,7 @@ Admin Dashboard | MovieHub
                     <div>
                         <h6 class="mb-1">Manage Categories</h6>
                         <small class="text-muted">Create or edit movie categories</small>
-                        <div><a href="/admin/movies/category/" class="btn btn-sm btn-success mt-2">Go →</a></div>
+                        <div><a href="/admin/coremovieshub/category/" class="btn btn-sm btn-success mt-2">Go →</a></div>
                     </div>
                 </div>
             </div>

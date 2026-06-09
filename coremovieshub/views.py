@@ -317,11 +317,12 @@ def admin_dashboard(request):
         "total_movies": TelegramMovie.objects.count(),
         "total_categories": Category.objects.count(),
         "total_channels": TelegramChannel.objects.count(),
+
         "verified_users": MembershipVerification.objects.filter(
             membership_status=True
         ).count(),
 
-        "latest_movies": TelegramMovie.objects.select_related(
+        "recent_movies": TelegramMovie.objects.select_related(
             "category"
         ).order_by("-created_at")[:10],
 
