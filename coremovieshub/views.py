@@ -7,6 +7,11 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
 from django.core.paginator import Paginator
 import asyncio
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.shortcuts import render, redirect
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q
@@ -656,26 +661,21 @@ def edit_profile(request):
 @login_required
 def video_list(request):
 
-    verification = get_object_or_404(
-        MembershipVerification,
-        user=request.user
+    verification, created = (
+        MembershipVerification.objects.get_or_create(
+            user=request.user
+        )
     )
 
     if (
         not verification.membership_status
-        or verification_expired(
-            verification
-            )
-        ):
-
+        or verification_expired(verification)
+    ):
         messages.warning(
             request,
             "You must verify your Telegram membership to watch videos."
         )
-
-        return redirect(
-            "verify_telegram"
-        )
+        return redirect("verify_telegram")
 
     movies = (
         TelegramMovie.objects
@@ -686,11 +686,34 @@ def video_list(request):
         .order_by("-created_at")
     )
 
-    paginator = Paginator(movies, 24)
+    # Search
+    query = request.GET.get("q", "").strip()
+
+    if query:
+        movies = movies.filter(
+            Q(title__icontains=query)
+            | Q(description__icontains=query)
+        )
+
+    # Category Filter
+    category_id = request.GET.get("category")
+
+    if category_id:
+        movies = movies.filter(
+            category_id=category_id
+        )
+
+    # Pagination
+    paginator = Paginator(
+        movies,
+        24
+    )
 
     page_number = request.GET.get("page")
 
-    page_obj = paginator.get_page(page_number)
+    page_obj = paginator.get_page(
+        page_number
+    )
 
     return render(
         request,
@@ -698,6 +721,13 @@ def video_list(request):
         {
             "movies": page_obj,
             "page_obj": page_obj,
+            "categories": (
+                Category.objects
+                .all()
+                .order_by("name")
+            ),
+            "current_query": query,
+            "current_category": category_id,
         }
     )
 
