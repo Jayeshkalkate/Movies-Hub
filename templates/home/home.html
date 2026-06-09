@@ -75,7 +75,7 @@
         <div class="row g-3">
             {% for cat in categories|slice:":6" %}
                 <div class="col-sm-6 col-md-4 col-lg-2">
-                    <a href="{% url 'category_movies' cat.id %}" class="text-decoration-none">
+                    <a href="{% url 'category_movies' cat.slug %}" class="text-decoration-none">
                         <div class="card bg-primary bg-opacity-10 text-center py-3 rounded-4 transition-card">
                             <div class="card-body">
                                 <i class="bi bi-folder2-open fs-1"></i>
