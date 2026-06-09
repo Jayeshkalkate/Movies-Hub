@@ -199,6 +199,14 @@ def telegram_webhook(request):
             "📩 Update received: %s",
             data
         )
+        
+        if "channel_post" in data:
+            logger.warning("🎬 CHANNEL POST DETECTED!")
+            
+            logger.warning(
+                "📢 Channel Info: %s",
+                data["channel_post"]["chat"]
+                )
 
         logger.warning(
             "⚙️ INITIALISING APPLICATION"
