@@ -301,18 +301,27 @@ class TelegramMovie(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.title)
-
+            
             slug = base_slug
             counter = 1
-
+            
             while TelegramMovie.objects.filter(slug=slug).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-
-            self.slug = slug
-
-        super().save(*args, **kwargs)
-
+                
+                self.slug = slug
+                
+                super().save(*args, **kwargs)
+                
+    @property
+    def can_download_from_website(self):
+        
+        try:
+            return float(self.file_size) <= 2
+        
+        except Exception:
+            return False
+                    
     def __str__(self):
         return self.title
 

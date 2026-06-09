@@ -157,6 +157,26 @@ def website_download(request, movie_id):
         id=movie_id
     )
 
+    try:
+        file_size_gb = float(movie.file_size)
+    except (ValueError, TypeError):
+        file_size_gb = 0
+
+    if file_size_gb > 2:
+
+        messages.warning(
+            request,
+            (
+                "This movie is larger than 2 GB. "
+                "Please use Telegram download."
+            )
+        )
+
+        return redirect(
+            "download_movie",
+            movie_id=movie.id
+        )
+
     verification, created = (
         MembershipVerification.objects.get_or_create(
             user=request.user
@@ -186,32 +206,32 @@ def website_download(request, movie_id):
         )
 
     try:
-        
+
         bot = Bot(
             token=settings.TELEGRAM_BOT_TOKEN
-            )
-        
+        )
+
         telegram_file = asyncio.run(
             bot.get_file(
                 movie.telegram_file_id
-                )
             )
-        
+        )
+
         download_url = (
             f"https://api.telegram.org/file/bot"
             f"{settings.TELEGRAM_BOT_TOKEN}/"
             f"{telegram_file.file_path}"
-            )
-        
+        )
+
         logger.warning(
             f"Download URL: {download_url}"
-            )
-        
+        )
+
         response = requests.get(
             download_url,
             stream=True
-            )
-        
+        )
+
         response.raise_for_status()
 
         filename = (
@@ -253,8 +273,7 @@ def website_download(request, movie_id):
         return redirect(
             "movie_detail",
             movie_id=movie.id
-        )
-        
+        )        
 
 @csrf_exempt
 def telegram_webhook(request):
@@ -941,7 +960,7 @@ def upload_movie(request):
                 f"Year: {form.cleaned_data.get('year', 'N/A')}\n"
                 f"Quality: {form.cleaned_data.get('quality', 'N/A')}"
             )
-            
+
             # Upload video to Telegram
             try:
                 sent_message = async_to_sync(
@@ -969,9 +988,19 @@ def upload_movie(request):
             movie.channel = channel
             movie.telegram_message_id = sent_message.message_id
 
+            # Save Telegram file ID
             if sent_message.video:
                 movie.telegram_file_id = (
                     sent_message.video.file_id
+                )
+
+            # Save file size in GB
+            if sent_message.video.file_size:
+                movie.file_size = str(
+                    round(
+                        sent_message.video.file_size / (1024 ** 3),
+                        2
+                    )
                 )
 
             chat_link_part = str(channel.chat_id)
@@ -1003,4 +1032,4 @@ def upload_movie(request):
         {
             "form": form
         }
-    )    
+    )
