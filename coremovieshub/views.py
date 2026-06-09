@@ -54,7 +54,9 @@ from .telegram_utils import (
 )
 
 from django.core.cache import cache
-
+import requests
+from telegram import Bot
+from django.http import StreamingHttpResponse
 # coremovieshub/views.py (add at the bottom)
 from django.http import HttpResponseRedirect
 import json
@@ -146,6 +148,100 @@ def download_movie(request, movie_id):
     return HttpResponseRedirect(
         movie.telegram_message_link
     )
+    
+@login_required
+def website_download(request, movie_id):
+
+    movie = get_object_or_404(
+        TelegramMovie,
+        id=movie_id
+    )
+
+    verification, created = (
+        MembershipVerification.objects.get_or_create(
+            user=request.user
+        )
+    )
+
+    if not verification.membership_status:
+        messages.warning(
+            request,
+            "Please verify your Telegram account first."
+        )
+
+        return redirect(
+            "verify_telegram"
+        )
+
+    if not movie.telegram_file_id:
+
+        messages.error(
+            request,
+            "Download file not available."
+        )
+
+        return redirect(
+            "movie_detail",
+            movie_id=movie.id
+        )
+
+    try:
+
+        bot = Bot(
+            token=settings.TELEGRAM_BOT_TOKEN
+        )
+
+        telegram_file = bot.get_file(
+            movie.telegram_file_id
+        )
+
+        response = requests.get(
+            telegram_file.file_path,
+            stream=True
+        )
+
+        filename = (
+            f"{movie.title}.mp4"
+        )
+
+        streaming_response = StreamingHttpResponse(
+            response.iter_content(
+                chunk_size=8192
+            ),
+            content_type="application/octet-stream"
+        )
+
+        streaming_response[
+            "Content-Disposition"
+        ] = (
+            f'attachment; filename="{filename}"'
+        )
+
+        TelegramMovie.objects.filter(
+            id=movie.id
+        ).update(
+            downloads=F("downloads") + 1
+        )
+
+        return streaming_response
+
+    except Exception as e:
+
+        logger.exception(
+            "Website download failed"
+        )
+
+        messages.error(
+            request,
+            f"Download failed: {str(e)}"
+        )
+
+        return redirect(
+            "movie_detail",
+            movie_id=movie.id
+        )
+        
+
 @csrf_exempt
 def telegram_webhook(request):
     """

@@ -108,8 +108,13 @@
                             <a href="{% url 'watch_movie' movie.id %}" class="btn btn-success btn-lg">
                                 <i class="bi bi-play-circle"></i> Watch Movie
                             </a>
+                            <a href="{% url 'website_download' movie.id %}"
+                             class="btn btn-success" >
+                             <i class="bi bi-download"></i>
+                             Download on Website
+                            </a>
                             <a href="{% url 'download_movie' movie.id %}" class="btn btn-warning btn-lg">
-                                <i class="bi bi-download"></i> Download
+                                <i class="bi bi-download"></i> Download On Telegram
                             </a>
                             <a href="{% url 'add_to_watchlist' movie.id %}" class="btn btn-info btn-lg">
                                 <i class="bi bi-bookmark-plus"></i> Add to Watchlist

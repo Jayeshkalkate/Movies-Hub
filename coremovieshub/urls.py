@@ -101,4 +101,9 @@ path(
     views.upload_movie,
     name='upload_movie'
 ),
+path(
+    "website-download/<int:movie_id>/",
+    views.website_download,
+    name="website_download"
+),
 ]
