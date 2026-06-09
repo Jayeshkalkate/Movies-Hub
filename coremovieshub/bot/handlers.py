@@ -9,6 +9,9 @@ from telegram.ext import (
     ConversationHandler,
 )
 
+from asgiref.sync import sync_to_async
+from django.utils.text import slugify
+
 from django.conf import settings
 from django.utils import timezone
 from asgiref.sync import sync_to_async
@@ -27,6 +30,14 @@ from telegram.ext import Application
 from asgiref.sync import async_to_sync
 
 import logging
+
+from coremovieshub.utils.movie_parser import (
+    clean_caption,
+    extract_title,
+    extract_quality,
+    extract_language,
+    extract_season,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +308,7 @@ def save_movie(
     message_link,
     year,
     quality,
+    description="",
 ):
     TelegramMovie.objects.create(
         title=title,
@@ -307,7 +319,10 @@ def save_movie(
         telegram_message_link=message_link,
         year=year,
         quality=quality,
-    )
+        language=extract_language(description),
+        description=clean_caption(description),
+        season=extract_season(description),
+        )
 
 
 async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -548,16 +563,17 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
-from asgiref.sync import sync_to_async
-from django.utils.text import slugify
-
 @sync_to_async
 def save_channel_movie(post, channel, media):
-    title = (
-        post.caption
-        or getattr(media, "file_name", None)
-        or "Untitled Movie"
-    )
+    caption = post.caption or ""
+    
+    title = extract_title(caption)
+    
+    if not title:
+        title = (
+            getattr(media, "file_name", None)
+            or "Untitled Movie"
+            )
 
     chat_id = str(channel.chat_id)
 
@@ -607,8 +623,8 @@ def save_channel_movie(post, channel, media):
         telegram_file_id=media.file_id,
         telegram_message_link=message_link,
 
-        quality="Unknown",
-        description=post.caption or "",
+        quality=extract_quality(caption),
+        description=clean_caption(caption),
     )
 
     print(
