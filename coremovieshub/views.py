@@ -1,6 +1,5 @@
 # Create your views here.
 from django.conf import settings
-from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -22,7 +21,6 @@ from django.shortcuts import (
     redirect,
     get_object_or_404,
 )
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import F
 from django.shortcuts import (

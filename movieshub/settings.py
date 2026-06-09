@@ -17,6 +17,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+from distutils.util import strtobool
 
 # --------------------------------------------------
 # BASE DIRECTORY
@@ -26,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables
 load_dotenv()
 
-DEBUG = os.environ.get("DEBUG", "False") == "True"
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
 # --------------------------------------------------
 # SECURITY
