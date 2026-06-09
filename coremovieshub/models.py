@@ -296,7 +296,7 @@ class TelegramMovie(models.Model):
                     ],
                 name="unique_channel_message"
                 )
-            ]
+             ]
     
     def save(self, *args, **kwargs):
         if not self.slug:
