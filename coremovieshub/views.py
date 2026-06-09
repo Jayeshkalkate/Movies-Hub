@@ -186,21 +186,33 @@ def website_download(request, movie_id):
         )
 
     try:
-
+        
         bot = Bot(
             token=settings.TELEGRAM_BOT_TOKEN
-        )
-
-        telegram_file = async_to_sync(
-            bot.get_file
-            )(
+            )
+        
+        telegram_file = asyncio.run(
+            bot.get_file(
                 movie.telegram_file_id
                 )
-
+            )
+        
+        download_url = (
+            f"https://api.telegram.org/file/bot"
+            f"{settings.TELEGRAM_BOT_TOKEN}/"
+            f"{telegram_file.file_path}"
+            )
+        
+        logger.warning(
+            f"Download URL: {download_url}"
+            )
+        
         response = requests.get(
-            telegram_file.file_path,
+            download_url,
             stream=True
-        )
+            )
+        
+        response.raise_for_status()
 
         filename = (
             f"{movie.title}.mp4"
