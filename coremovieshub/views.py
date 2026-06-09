@@ -191,9 +191,11 @@ def website_download(request, movie_id):
             token=settings.TELEGRAM_BOT_TOKEN
         )
 
-        telegram_file = bot.get_file(
-            movie.telegram_file_id
-        )
+        telegram_file = async_to_sync(
+            bot.get_file
+            )(
+                movie.telegram_file_id
+                )
 
         response = requests.get(
             telegram_file.file_path,
