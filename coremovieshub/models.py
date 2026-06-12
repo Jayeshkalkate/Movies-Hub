@@ -298,23 +298,25 @@ class TelegramMovie(models.Model):
                 )
              ]
         
+    from django.utils.text import slugify
+    
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.title)[:250] or "movie"
             
             slug = base_slug
-            counter = 1
+            count = 1
             
             while TelegramMovie.objects.filter(
                 slug=slug
-                ).exclude(pk=self.pk).exists():
+            ).exclude(pk=self.pk).exists():
                 
-                slug = f"{base_slug}-{counter}"
-                counter += 1
+                slug = f"{base_slug}-{count}"
+                count += 1
                 
-                self.slug = slug
+            self.slug = slug
                 
-                super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
                 
     @property
     def can_download_from_website(self):
