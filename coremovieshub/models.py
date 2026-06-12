@@ -305,7 +305,10 @@ class TelegramMovie(models.Model):
             slug = base_slug
             counter = 1
             
-            while TelegramMovie.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+            while TelegramMovie.objects.filter(
+                slug=slug
+                ).exclude(pk=self.pk).exists():
+                
                 slug = f"{base_slug}-{counter}"
                 counter += 1
                 
