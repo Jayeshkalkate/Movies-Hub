@@ -297,9 +297,7 @@ class TelegramMovie(models.Model):
                 name="unique_channel_message"
                 )
              ]
-    
-    from django.utils.text import slugify
-    
+        
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.title)[:250] or "movie"
