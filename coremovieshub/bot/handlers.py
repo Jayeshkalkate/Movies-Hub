@@ -563,6 +563,80 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
+# @sync_to_async
+# def save_channel_movie(post, channel, media):
+#     caption = post.caption or ""
+
+#     title = extract_title(caption)
+
+#     if not title:
+#         title = (
+#             getattr(media, "file_name", None)
+#             or "Untitled Movie"
+#         )
+
+#     chat_id = str(channel.chat_id)
+
+#     if chat_id.startswith("-100"):
+#         chat_id = chat_id[4:]
+
+#     message_link = (
+#         f"https://t.me/c/{chat_id}/{post.message_id}"
+#     )
+
+#     print("MESSAGE ID:", post.message_id)
+#     print("CHANNEL ID:", channel.chat_id)
+#     print("MESSAGE LINK:", message_link)
+
+#     existing = TelegramMovie.objects.filter(
+#         telegram_message_id=post.message_id,
+#         channel=channel
+#     ).exists()
+
+#     if existing:
+#         print("Movie already exists:", post.message_id)
+#         return None
+
+#     try:
+#         movie = TelegramMovie.objects.create(
+#             title=title[:255],
+#             slug=slugify(title)[:300],
+#             content_type="movie",
+#             category=channel.category,
+#             channel=channel,
+#             telegram_message_id=post.message_id,
+#             telegram_file_id=media.file_id,
+#             telegram_message_link=message_link,
+#             quality=extract_quality(caption),
+#             description=clean_caption(caption),
+#         )
+
+#         print("=" * 50)
+#         print("MOVIE ACTUALLY SAVED")
+#         print("DATABASE ID:", movie.id)
+#         print("TITLE:", movie.title)
+#         print("MESSAGE ID:", movie.telegram_message_id)
+#         print("=" * 50)
+
+#         return movie
+
+#     except Exception as e:
+#         import traceback
+
+#         print("=" * 50)
+#         print("DATABASE SAVE FAILED")
+#         print(type(e).__name__)
+#         print(str(e))
+#         traceback.print_exc()
+#         print("=" * 50)
+
+#         raise
+
+from asgiref.sync import sync_to_async
+from django.utils.text import slugify
+import traceback
+
+
 @sync_to_async
 def save_channel_movie(post, channel, media):
     caption = post.caption or ""
@@ -584,17 +658,27 @@ def save_channel_movie(post, channel, media):
         f"https://t.me/c/{chat_id}/{post.message_id}"
     )
 
+    print("=" * 60)
+    print("SAVE_CHANNEL_MOVIE STARTED")
+    print("TITLE:", title)
     print("MESSAGE ID:", post.message_id)
     print("CHANNEL ID:", channel.chat_id)
     print("MESSAGE LINK:", message_link)
+    print("MEDIA TYPE:", type(media).__name__)
+    print("FILE ID:", media.file_id)
+    print("=" * 60)
 
+    # Duplicate check
     existing = TelegramMovie.objects.filter(
         telegram_message_id=post.message_id,
         channel=channel
     ).exists()
 
     if existing:
-        print("Movie already exists:", post.message_id)
+        print("=" * 60)
+        print("MOVIE ALREADY EXISTS")
+        print("MESSAGE ID:", post.message_id)
+        print("=" * 60)
         return None
 
     try:
@@ -611,27 +695,49 @@ def save_channel_movie(post, channel, media):
             description=clean_caption(caption),
         )
 
-        print("=" * 50)
-        print("MOVIE ACTUALLY SAVED")
-        print("DATABASE ID:", movie.id)
+        print("=" * 60)
+        print("SAVED TO DATABASE")
+        print("DATABASE ID:", movie.pk)
         print("TITLE:", movie.title)
         print("MESSAGE ID:", movie.telegram_message_id)
-        print("=" * 50)
+        print("=" * 60)
+
+        # Verify immediately after save
+        exists = TelegramMovie.objects.filter(
+            pk=movie.pk
+        ).exists()
+
+        print("EXISTS AFTER SAVE:", exists)
+
+        if exists:
+            verified_movie = TelegramMovie.objects.get(
+                pk=movie.pk
+            )
+
+            print("=" * 60)
+            print("DATABASE VERIFICATION SUCCESSFUL")
+            print("VERIFIED ID:", verified_movie.pk)
+            print("VERIFIED TITLE:", verified_movie.title)
+            print("VERIFIED MESSAGE ID:",
+                  verified_movie.telegram_message_id)
+            print("=" * 60)
+        else:
+            print("=" * 60)
+            print("WARNING: OBJECT NOT FOUND AFTER SAVE")
+            print("=" * 60)
 
         return movie
 
     except Exception as e:
-        import traceback
-
-        print("=" * 50)
+        print("=" * 60)
         print("DATABASE SAVE FAILED")
-        print(type(e).__name__)
-        print(str(e))
+        print("ERROR TYPE:", type(e).__name__)
+        print("ERROR:", str(e))
         traceback.print_exc()
-        print("=" * 50)
+        print("=" * 60)
 
         raise
-        
+    
 async def handle_channel_post(update, context):
     print("=" * 60)
     print("CHANNEL HANDLER FIRED")
@@ -707,18 +813,6 @@ async def handle_channel_post(update, context):
             f"{chat_id_for_link}/"
             f"{post.message_id}"
         )
-
-        # Prevent duplicate entries
-        exists = await sync_to_async(
-            TelegramMovie.objects.filter(
-                channel=channel,
-                telegram_message_id=post.message_id
-            ).exists
-        )()
-
-        if exists:
-            print("⚠ MOVIE ALREADY EXISTS")
-            return
 
         await save_channel_movie(
             post,
