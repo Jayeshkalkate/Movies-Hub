@@ -566,14 +566,14 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @sync_to_async
 def save_channel_movie(post, channel, media):
     caption = post.caption or ""
-    
+
     title = extract_title(caption)
-    
+
     if not title:
         title = (
             getattr(media, "file_name", None)
             or "Untitled Movie"
-            )
+        )
 
     chat_id = str(channel.chat_id)
 
@@ -584,20 +584,9 @@ def save_channel_movie(post, channel, media):
         f"https://t.me/c/{chat_id}/{post.message_id}"
     )
 
-    print(
-        "MESSAGE ID:",
-        post.message_id
-    )
-
-    print(
-        "CHANNEL ID:",
-        channel.chat_id
-    )
-
-    print(
-        "MESSAGE LINK:",
-        message_link
-    )
+    print("MESSAGE ID:", post.message_id)
+    print("CHANNEL ID:", channel.chat_id)
+    print("MESSAGE LINK:", message_link)
 
     existing = TelegramMovie.objects.filter(
         telegram_message_id=post.message_id,
@@ -605,31 +594,43 @@ def save_channel_movie(post, channel, media):
     ).exists()
 
     if existing:
-        print(
-            "Movie already exists:",
-            post.message_id
+        print("Movie already exists:", post.message_id)
+        return None
+
+    try:
+        movie = TelegramMovie.objects.create(
+            title=title[:255],
+            slug=slugify(title)[:300],
+            content_type="movie",
+            category=channel.category,
+            channel=channel,
+            telegram_message_id=post.message_id,
+            telegram_file_id=media.file_id,
+            telegram_message_link=message_link,
+            quality=extract_quality(caption),
+            description=clean_caption(caption),
         )
-        return
 
-    TelegramMovie.objects.create(
-        title=title[:255],
-        slug=slugify(title)[:300],
+        print("=" * 50)
+        print("MOVIE ACTUALLY SAVED")
+        print("DATABASE ID:", movie.id)
+        print("TITLE:", movie.title)
+        print("MESSAGE ID:", movie.telegram_message_id)
+        print("=" * 50)
 
-        content_type="movie",
-        category=channel.category,
-        channel=channel,
+        return movie
 
-        telegram_message_id=post.message_id,
-        telegram_file_id=media.file_id,
-        telegram_message_link=message_link,
+    except Exception as e:
+        import traceback
 
-        quality=extract_quality(caption),
-        description=clean_caption(caption),
-    )
+        print("=" * 50)
+        print("DATABASE SAVE FAILED")
+        print(type(e).__name__)
+        print(str(e))
+        traceback.print_exc()
+        print("=" * 50)
 
-    print(
-        "MOVIE SAVED SUCCESSFULLY"
-    )
+        raise
         
 async def handle_channel_post(update, context):
     print("=" * 60)
