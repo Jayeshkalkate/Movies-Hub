@@ -298,9 +298,16 @@ class TelegramMovie(models.Model):
                 )
              ]
     
+    from django.utils.text import slugify
+    
     def save(self, *args, **kwargs):
+        """
+        Generate a unique slug automatically if one is not provided.
+        Always save the object to the database.
+        """
+        
         if not self.slug:
-            base_slug = slugify(self.title)
+            base_slug = slugify(self.title)[:250] or "movie"
             
             slug = base_slug
             counter = 1
