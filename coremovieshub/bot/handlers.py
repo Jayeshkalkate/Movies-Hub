@@ -166,7 +166,7 @@ async def start(
         ]
 
         await update.message.reply_text(
-            "🎬 Welcome to MovieHub!\n\n"
+            "🎬 Welcome to MoviesHub!\n\n"
             "To access movies:\n"
             "1️⃣ Register on website\n"
             "2️⃣ Login\n"
@@ -187,7 +187,7 @@ async def start(
 
         await update.message.reply_text(
             "⚠️ Invalid verification link.\n\n"
-            "Please return to MovieHub and generate a new verification link."
+            "Please return to MoviesHub and generate a new verification link."
         )
 
         return
@@ -213,7 +213,7 @@ async def start(
             keyboard = [
                 [
                     InlineKeyboardButton(
-                        "🎬 Open MovieHub",
+                        "🎬 Open MoviesHub",
                         url=settings.BASE_URL
                         )
                     ]
@@ -221,7 +221,7 @@ async def start(
             
             await update.message.reply_text(
                 "✅ Account verified successfully!\n\n"
-                "You can now return to MovieHub and continue.",
+                "You can now return to MoviesHub and continue.",
                 reply_markup=InlineKeyboardMarkup(
                     keyboard
                     )
@@ -238,7 +238,7 @@ async def start(
 
             await update.message.reply_text(
                 "⚠️ Invalid or expired verification link.\n\n"
-                "Please return to MovieHub and generate a new verification link."
+                "Please return to MoviesHub and generate a new verification link."
             )
 
         elif result == "verification_not_found":

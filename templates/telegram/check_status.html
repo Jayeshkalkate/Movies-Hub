@@ -1,79 +1,85 @@
-{% extends 'base.html' %}
-
-{% block title %}Checking Verification Status | MovieHub{% endblock %}
-
-{% block content %}
+{% extends 'base.html' %} {% block title %}Checking Verification Status |
+MoviesHub{% endblock %} {% block content %}
 <div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card shadow-sm border-0 rounded-4 text-center">
-                <div class="card-body p-5">
-                    <!-- Animated icon -->
-                    <div class="mb-4">
-                        <i class="bi bi-telegram fs-1 text-info"></i>
-                        <i class="bi bi-arrow-right-short fs-1"></i>
-                        <i class="bi bi-person-check fs-1 text-success"></i>
-                    </div>
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow-sm border-0 rounded-4 text-center">
+        <div class="card-body p-5">
+          <!-- Animated icon -->
+          <div class="mb-4">
+            <i class="bi bi-telegram fs-1 text-info"></i>
+            <i class="bi bi-arrow-right-short fs-1"></i>
+            <i class="bi bi-person-check fs-1 text-success"></i>
+          </div>
 
-                    <h3 class="fw-bold mb-3">Checking your Telegram membership...</h3>
-                    <p class="text-muted mb-4">Please wait while we verify your status in the required channels.</p>
+          <h3 class="fw-bold mb-3">Checking your Telegram membership...</h3>
+          <p class="text-muted mb-4">
+            Please wait while we verify your status in the required channels.
+          </p>
 
-                    <!-- Spinner -->
-                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
+          <!-- Spinner -->
+          <div
+            class="spinner-border text-primary"
+            role="status"
+            style="width: 3rem; height: 3rem"
+          >
+            <span class="visually-hidden">Loading...</span>
+          </div>
 
-                    <p class="mt-4 small text-muted">
-                        <i class="bi bi-clock-history"></i> This will only take a few seconds.
-                    </p>
+          <p class="mt-4 small text-muted">
+            <i class="bi bi-clock-history"></i> This will only take a few
+            seconds.
+          </p>
 
-                    <!-- Progress message that updates via JS (optional) -->
-                    <div id="status-message" class="alert alert-info mt-3 d-none">
-                        <i class="bi bi-info-circle"></i> <span>Redirecting you shortly...</span>
-                    </div>
-                </div>
-            </div>
+          <!-- Progress message that updates via JS (optional) -->
+          <div id="status-message" class="alert alert-info mt-3 d-none">
+            <i class="bi bi-info-circle"></i>
+            <span>Redirecting you shortly...</span>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <!-- JavaScript redirect with countdown (better than meta refresh) -->
 <script>
-    (function() {
-        // Redirect URL
-        const redirectUrl = "{% url 'video_list' %}";
-        let secondsLeft = 3;
-        const statusDiv = document.getElementById('status-message');
-        
-        // Show status message after 1 second
-        setTimeout(function() {
-            if (statusDiv) {
-                statusDiv.classList.remove('d-none');
-                const span = statusDiv.querySelector('span');
-                if (span) {
-                    span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
-                }
-                // Update countdown every second
-                const interval = setInterval(function() {
-                    secondsLeft--;
-                    if (secondsLeft > 0) {
-                        if (span) span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
-                    } else {
-                        clearInterval(interval);
-                    }
-                }, 1000);
-            }
-        }, 1000);
+  (function () {
+    // Redirect URL
+    const redirectUrl = "{% url 'video_list' %}";
+    let secondsLeft = 3;
+    const statusDiv = document.getElementById("status-message");
 
-        // Perform redirect after 3 seconds
-        setTimeout(function() {
-            window.location.href = redirectUrl;
-        }, 3000);
-    })();
+    // Show status message after 1 second
+    setTimeout(function () {
+      if (statusDiv) {
+        statusDiv.classList.remove("d-none");
+        const span = statusDiv.querySelector("span");
+        if (span) {
+          span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
+        }
+        // Update countdown every second
+        const interval = setInterval(function () {
+          secondsLeft--;
+          if (secondsLeft > 0) {
+            if (span)
+              span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
+          } else {
+            clearInterval(interval);
+          }
+        }, 1000);
+      }
+    }, 1000);
+
+    // Perform redirect after 3 seconds
+    setTimeout(function () {
+      window.location.href = redirectUrl;
+    }, 3000);
+  })();
 </script>
 
 <!-- Optional: If you want to auto-refresh using meta as fallback (remove if JS is reliable) -->
 <noscript>
-    <meta http-equiv="refresh" content="3; url={% url 'video_list' %}">
+  <meta http-equiv="refresh" content="3; url={% url 'video_list' %}" />
 </noscript>
 {% endblock %}

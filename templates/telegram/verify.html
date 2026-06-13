@@ -1,62 +1,77 @@
-{% extends 'base.html' %}
-
-{% block title %}Verify Telegram Membership | MovieHub{% endblock %}
-
-{% block content %}
+{% extends 'base.html' %} {% block title %}Verify Telegram Membership |
+MoviesHub{% endblock %} {% block content %}
 <div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-                <div class="card-header bg-primary text-white text-center py-4">
-                    <i class="bi bi-telegram fs-1"></i>
-                    <h3 class="mb-0 fw-bold mt-2">Join MovieHub on Telegram</h3>
-                    <p class="mb-0 mt-1">Unlock unlimited movie access</p>
-                </div>
-                <div class="card-body p-4 text-center">
-                    <!-- Benefits list -->
-                    <div class="row g-3 mb-4 text-start">
-                        <div class="col-12">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
-                                <span>Get notified about new movie releases</span>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
-                                <span>Exclusive content and behind-the-scenes</span>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
-                                <span>Direct download links and streaming updates</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p class="mb-3">To watch videos on MovieHub, you must be a member of our Telegram channel.</p>
-
-                    <!-- Join button with deep link -->
-                    <a href="{{ telegram_deep_link }}" target="_blank" class="btn btn-success btn-lg px-5 mb-4">
-                        <i class="bi bi-telegram"></i> Join Telegram Channel
-                    </a>
-
-                    <div class="alert alert-light border rounded-4 p-3 mb-4">
-                        <i class="bi bi-info-circle-fill text-primary me-2"></i>
-                        <span class="small">After joining the channel, click the button below to complete verification.</span>
-                    </div>
-
-                    <!-- Verify button -->
-                    <a href="{% url 'check_verification' %}" class="btn btn-outline-primary px-4">
-                        <i class="bi bi-check2-circle"></i> I have joined — Verify Now
-                    </a>
-                </div>
-                <div class="card-footer bg-white text-center py-3">
-                    <small class="text-muted">Need help? <a href="{% url 'contact' %}" class="text-decoration-none">Contact support</a></small>
-                </div>
-            </div>
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+        <div class="card-header bg-primary text-white text-center py-4">
+          <i class="bi bi-telegram fs-1"></i>
+          <h3 class="mb-0 fw-bold mt-2">Join MoviesHub on Telegram</h3>
+          <p class="mb-0 mt-1">Unlock unlimited movie access</p>
         </div>
+        <div class="card-body p-4 text-center">
+          <!-- Benefits list -->
+          <div class="row g-3 mb-4 text-start">
+            <div class="col-12">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
+                <span>Get notified about new movie releases</span>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
+                <span>Exclusive content and behind-the-scenes</span>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-check-circle-fill text-success fs-5 me-3"></i>
+                <span>Direct download links and streaming updates</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="mb-3">
+            To watch videos on MoviesHub, you must be a member of our Telegram
+            channel.
+          </p>
+
+          <!-- Join button with deep link -->
+          <a
+            href="{{ telegram_deep_link }}"
+            target="_blank"
+            class="btn btn-success btn-lg px-5 mb-4"
+          >
+            <i class="bi bi-telegram"></i> Join Telegram Channel
+          </a>
+
+          <div class="alert alert-light border rounded-4 p-3 mb-4">
+            <i class="bi bi-info-circle-fill text-primary me-2"></i>
+            <span class="small"
+              >After joining the channel, click the button below to complete
+              verification.</span
+            >
+          </div>
+
+          <!-- Verify button -->
+          <a
+            href="{% url 'check_verification' %}"
+            class="btn btn-outline-primary px-4"
+          >
+            <i class="bi bi-check2-circle"></i> I have joined — Verify Now
+          </a>
+        </div>
+        <div class="card-footer bg-white text-center py-3">
+          <small class="text-muted"
+            >Need help?
+            <a href="{% url 'contact' %}" class="text-decoration-none"
+              >Contact support</a
+            ></small
+          >
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}

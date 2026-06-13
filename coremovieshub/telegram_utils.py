@@ -4,7 +4,7 @@ from .models import MembershipVerification
 
 def check_telegram_membership(user_telegram_id, chat_id):
     """
-    Check if a user is a member of the MovieHub Telegram channel.
+    Check if a user is a member of the MoviesHub Telegram channel.
     """
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMember"
     params = {

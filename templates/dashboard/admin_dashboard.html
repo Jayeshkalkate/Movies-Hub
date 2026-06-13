@@ -1,10 +1,5 @@
-{% extends 'base.html' %} 
-
-{% block title %}
-Admin Dashboard | MovieHub
-{% endblock%} 
-
-{% block content %}
+{% extends 'base.html' %} {% block title %} Admin Dashboard | MoviesHub {%
+endblock%} {% block content %}
 
 <div class="container mt-4">
   <!-- Header -->
@@ -13,8 +8,9 @@ Admin Dashboard | MovieHub
       <i class="bi bi-speedometer2"></i> Admin Dashboard
     </h2>
     <div class="btn-group" role="group">
-    
-      <a href="{% url 'add_category' %}" class="btn btn-warning"> Add Category </a>
+      <a href="{% url 'add_category' %}" class="btn btn-warning">
+        Add Category
+      </a>
 
       <a href="{% url 'upload_movie' %}" class="btn btn-success">
         <i class="bi bi-cloud-upload"></i> Upload Movie
