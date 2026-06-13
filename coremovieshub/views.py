@@ -16,6 +16,9 @@ from .bot import get_application
 from .telegram_utils import (
     check_telegram_membership
 )
+from django.core.mail import send_mail
+from django.contrib import messages
+from django.conf import settings
 from .forms import (
     TelegramMovieUploadForm,
     TelegramMovieEditForm,
@@ -703,7 +706,42 @@ def about(request):
     return render(request, 'home/about.html')
 
 def contact(request):
-    return render(request, 'home/contact.html')
+    if request.method == "POST":
+        name = request.POST.get("name")
+        email = request.POST.get("email")
+        subject = request.POST.get("subject")
+        message = request.POST.get("message")
+        
+        full_message = f"""
+        Name: {name}
+        Email: {email}
+        
+        Message: {message}
+        """
+
+        try:
+            send_mail(
+                subject=f"MoviesHub Contact: {subject}",
+                message=full_message,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=["kalkatejayesh@gmail.com"],  # Your email
+                fail_silently=False,
+            )
+
+            messages.success(
+                request,
+                "Your message has been sent successfully!"
+            )
+
+        except Exception:
+            messages.error(
+                request,
+                "Failed to send message. Please try again later."
+            )
+
+        return redirect("contact")
+
+    return render(request, "home/contact.html")
 
 def register(request):
     if request.method == 'POST':
