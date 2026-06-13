@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>
+Join Channel to Access
+{{ movie.title }}
+</h2>
+
+<p>
+Please join the Telegram channel below.
+</p>
+
+<a
+href="{{ movie.telegram_message_link }}"
+target="_blank"
+class="btn btn-primary"
+>
+
+Join Channel
+
+</a>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    <button
+        type="submit"
+        class="btn btn-success mt-3"
+    >
+
+        I've Joined
+
+    </button>
+
+</form>
+
+{% endblock %}

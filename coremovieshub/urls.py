@@ -27,6 +27,11 @@ path(
     name="download_movie"
 ),
 path(
+    "join-channel/<int:movie_id>/",
+    views.join_channel,
+    name="join_channel"
+),
+path(
     "search/",
     views.search_movies,
     name="search_movies"

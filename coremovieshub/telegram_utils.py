@@ -2,13 +2,14 @@ import requests
 from django.conf import settings
 from .models import MembershipVerification
 
-def check_telegram_membership(user_telegram_id):
+def check_telegram_membership(user_telegram_id, chat_id):
     """
     Check if a user is a member of the MovieHub Telegram channel.
     """
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMember"
     params = {
-        'chat_id': settings.MAIN_CHANNEL_ID,
+        # 'chat_id': settings.MAIN_CHANNEL_ID,
+        'chat_id': chat_id,
         'user_id': user_telegram_id
     }
     
