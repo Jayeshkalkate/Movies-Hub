@@ -4,32 +4,17 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
-from django.core.paginator import Paginator
 import asyncio
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q
 from django.http import HttpResponseForbidden
 from .bot import get_application
-from django.shortcuts import (
-    render,
-    redirect,
-    get_object_or_404,
-)
 from .telegram_utils import (
     check_telegram_membership
-)
-from django.contrib.auth.decorators import login_required
-from django.db.models import F
-from django.shortcuts import (
-    get_object_or_404,
-    redirect,
-    render,
 )
 from .forms import (
     TelegramMovieUploadForm,
@@ -85,16 +70,6 @@ def watch_movie(request, movie_id):
         )
     )
 
-    # if not verification.membership_status:
-    #     messages.warning(
-    #         request,
-    #         "Please verify your Telegram account first."
-    #     )
-
-    #     return redirect(
-    #         "verify_telegram"
-    #     )
-
     if not movie.telegram_message_link:
 
         messages.error(
@@ -125,16 +100,6 @@ def download_movie(request, movie_id):
             user=request.user
         )
     )
-
-    # if not verification.membership_status:
-    #     messages.warning(
-    #         request,
-    #         "Please verify your Telegram account first."
-    #     )
-
-    #     return redirect(
-    #         "verify_telegram"
-    #     )
 
     if not movie.telegram_message_link:
 
@@ -185,16 +150,6 @@ def website_download(request, movie_id):
             user=request.user
         )
     )
-
-    # if not verification.membership_status:
-    #     messages.warning(
-    #         request,
-    #         "Please verify your Telegram account first."
-    #     )
-
-    #     return redirect(
-    #         "verify_telegram"
-    #     )
 
     if not movie.telegram_file_id:
 
@@ -620,24 +575,7 @@ def movie_detail(request, movie_id):
             user=request.user
         )
     )
-
-    # # Force re-verification every 7 days
-    # if (
-    #     not verification.membership_status
-    #     or verification_expired(
-    #         verification
-    #     )
-    # ):
-    #     messages.warning(
-    #         request,
-    #         "Please verify Telegram again."
-    #     )
-
-    #     return redirect(
-    #         "verify_telegram"
-    #     )
-
-    # Increment view count atomically
+    
     TelegramMovie.objects.filter(
         id=movie.id
     ).update(
@@ -817,16 +755,6 @@ def video_list(request):
             user=request.user
         )
     )
-
-    # if (
-    #     not verification.membership_status
-    #     or verification_expired(verification)
-    # ):
-    #     messages.warning(
-    #         request,
-    #         "You must verify your Telegram membership to watch videos."
-    #     )
-    #     return redirect("verify_telegram")
 
     movies = (
         TelegramMovie.objects

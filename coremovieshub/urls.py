@@ -7,25 +7,18 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
     path('register/', views.register, name='register'),
-
-path('profile/', views.profile, name='profile'),
-path('profile/edit/', views.edit_profile, name='edit_profile'),
-path('videos/', views.video_list, name='video_list'),
-path('categories/add/', views.add_category, name='add_category'),
-path('verify/', views.verify_telegram, name='verify_telegram'),
-path('check-verification/', views.check_verification, name='check_verification'),
-path("webhook/", views.telegram_webhook, name="telegram_webhook"),
-path(
-    "watch/<int:movie_id>/",
-    views.watch_movie,
-    name="watch_movie"
-),
-
-path(
-    "download/<int:movie_id>/",
-    views.download_movie,
-    name="download_movie"
-),
+    path('profile/', views.profile, name='profile'),
+    path('profile/edit/', views.edit_profile, name='edit_profile'),
+    path('videos/', views.video_list, name='video_list'),
+    path('categories/add/', views.add_category, name='add_category'),
+    path('verify/', views.verify_telegram, name='verify_telegram'),
+    path('check-verification/', views.check_verification, name='check_verification'),
+    path("webhook/", views.telegram_webhook, name="telegram_webhook"),
+    path("watch/<int:movie_id>/", views.watch_movie, name="watch_movie"),
+    path("download/<int:movie_id>/",
+        views.download_movie,
+        name="download_movie"
+        ),
 path(
     "join-channel/<int:movie_id>/",
     views.join_channel,
