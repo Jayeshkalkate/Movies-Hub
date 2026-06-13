@@ -78,6 +78,12 @@ block content %}
               <i class="bi bi-box-arrow-in-right"></i> Login
             </button>
           </form>
+          
+          {% load socialaccount %}
+          
+          <a href="{% provider_login_url 'google' %}">
+          Continue with Google
+          </a>
 
           <div class="mt-4 text-center">
             <p class="mb-0">
