@@ -724,9 +724,9 @@ def contact(request):
                 subject=f"MoviesHub Contact: {subject}",
                 message=full_message,
                 from_email=settings.EMAIL_HOST_USER,
-                recipient_list=["kalkatejayesh@gmail.com"],  # Your email
+                recipient_list=["kalkatejayesh@gmail.com"],
                 fail_silently=False,
-            )
+                )
 
             messages.success(
                 request,
