@@ -742,7 +742,12 @@ async def handle_channel_post(update, context):
     print("=" * 60)
     print("CHANNEL HANDLER FIRED")
 
-    post = update.channel_post
+    # post = update.channel_post
+    
+    post = update.channel_post or update.message
+    
+    if not post:
+        return
 
     if not post:
         print("NO CHANNEL POST")

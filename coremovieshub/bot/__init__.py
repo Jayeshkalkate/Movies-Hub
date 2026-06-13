@@ -97,10 +97,22 @@ def setup_bot():
 
     application.add_handler(conv_handler)
     
+    # application.add_handler(
+    #     MessageHandler(
+    #         filters.ChatType.CHANNEL,
+    #         handle_channel_post
+    #         )
+    #     )
+    
     application.add_handler(
         MessageHandler(
-            filters.ChatType.CHANNEL,
-            handle_channel_post
+            (
+                filters.UpdateType.CHANNEL_POST
+                | filters.ChatType.SUPERGROUP
+                )
+            &
+            (filters.VIDEO | filters.Document.ALL),
+            handle_channel_post,
             )
         )
 
