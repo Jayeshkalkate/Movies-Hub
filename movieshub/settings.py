@@ -69,13 +69,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third Party
     'storages',
+
+    # Local Apps
     'coremovieshub',
-    'django.contrib.sites',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
+    
 ]
 
 # --------------------------------------------------
@@ -88,7 +88,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -137,27 +136,7 @@ else:
         }
     }
     
-
-
-# --------------------------------------------------
-# GOOGLE AUTHENTICATION
-# --------------------------------------------------
-
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-
-    'allauth.account.auth_backends.AuthenticationBackend',
-]
-
-SITE_ID = 1
-
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_EMAIL_VERIFICATION = "optional"
-
-ACCOUNT_LOGIN_METHODS = {"email"}
-
-SOCIALACCOUNT_AUTO_SIGNUP = True
-
+    
 # --------------------------------------------------
 # CUSTOM USER MODEL
 # --------------------------------------------------

@@ -24,8 +24,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('', include('coremovieshub.urls')),
-    
-    path('accounts/', include('allauth.urls')),
 
     path(
         "accounts/login/",
