@@ -8,9 +8,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-from coremovieshub.utils.movie_metadata import (
-    search_movie_metadata,
-)
+from coremovieshub.services.movie_metadata import search_movie_metadata
 from asgiref.sync import sync_to_async
 import traceback
 from django.conf import settings

@@ -134,11 +134,62 @@ class TelegramChannel(models.Model):
 
 
 # =====================================================
-# TELEGRAM MOVIES
+# TMBD MOVIE
 # =====================================================
 
-from django.db import models
-from django.utils.text import slugify
+class TMDBMovie(models.Model):
+    title = models.CharField(
+        max_length=500,
+        db_index=True,
+    )
+
+    title_normalized = models.CharField(
+        max_length=500,
+        unique=True,
+    )
+    
+    tmdb_id = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+    )
+    
+    backdrop_path = models.TextField(
+        blank=True,
+    )
+
+    poster_path = models.TextField(
+        blank=True,
+    )
+
+    overview = models.TextField(
+        blank=True,
+    )
+
+    genres = models.TextField(
+        blank=True,
+    )
+
+    release_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    vote_average = models.FloatField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["title_normalized"]
+            )
+        ]
+        
+# =====================================================
+# TELEGRAM MOVIES
+# =====================================================
 
 class TelegramMovie(models.Model):
 
