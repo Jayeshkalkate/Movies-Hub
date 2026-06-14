@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='telegrammovie',
-            name='imdb_rating',
+            name='rating',
             field=models.DecimalField(blank=True, decimal_places=1, max_digits=3, null=True),
         ),
         migrations.AddField(

@@ -65,7 +65,7 @@ class TelegramMovieUploadForm(forms.ModelForm):
             "description",
             "poster",
             "duration",
-            "imdb_rating",
+            "rating",
             "season",
             "episode",
             "tags",
@@ -100,7 +100,7 @@ class TelegramMovieUploadForm(forms.ModelForm):
             "duration": forms.TextInput(
                 attrs={"class": "form-control"}
             ),
-            "imdb_rating": forms.NumberInput(
+            "rating": forms.NumberInput(
                 attrs={
                     "class": "form-control",
                     "step": "0.1",
@@ -165,8 +165,8 @@ class TelegramMovieUploadForm(forms.ModelForm):
 
         return file
 
-    def clean_imdb_rating(self):
-        rating = self.cleaned_data.get("imdb_rating")
+    def clean_rating(self):
+        rating = self.cleaned_data.get("rating")
 
         if rating is not None:
             if rating < 0 or rating > 10:
@@ -191,7 +191,7 @@ class TelegramMovieEditForm(forms.ModelForm):
             "description",
             "poster",
             "duration",
-            "imdb_rating",
+            "rating",
             "season",
             "episode",
             "tags",
@@ -227,7 +227,7 @@ class TelegramMovieEditForm(forms.ModelForm):
             "duration": forms.TextInput(
                 attrs={"class": "form-control"}
             ),
-            "imdb_rating": forms.NumberInput(
+            "rating": forms.NumberInput(
                 attrs={
                     "class": "form-control",
                     "step": "0.1"

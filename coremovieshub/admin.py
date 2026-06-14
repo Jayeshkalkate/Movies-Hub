@@ -94,7 +94,7 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         'quality',
         'year',
         'duration',
-        'imdb_rating',
+        'rating',
         'views',
         'downloads',
         'created_at'

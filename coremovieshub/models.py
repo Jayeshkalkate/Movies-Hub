@@ -195,47 +195,98 @@ class TelegramMovie(models.Model):
         blank=True,
         null=True
     )
-
+    
     # Movie Information
     year = models.PositiveIntegerField(
         null=True,
         blank=True
-    )
-
+        )
+    
     release_date = models.DateField(
         null=True,
         blank=True
-    )
-
+        )
+    
     quality = models.CharField(
         max_length=20,
         blank=True
-    )
-
+        )
+    
     language = models.CharField(
         max_length=50,
         blank=True
-    )
-
+        )
+    
     duration = models.CharField(
         max_length=30,
         blank=True
-    )
-
-    imdb_rating = models.DecimalField(
-        max_digits=3,
-        decimal_places=1,
-        null=True,
-        blank=True
-    )
-
-    description = models.TextField(blank=True)
-
-    poster = models.ImageField(
-        upload_to="movie_posters/",
+        )
+    
+    poster = models.URLField(
         blank=True,
         null=True
-    )
+        )
+    
+    banner = models.URLField(
+        blank=True,
+        null=True
+        )
+    
+    overview = models.TextField(
+        blank=True
+        )
+        
+    rating = models.FloatField(
+        null=True,
+        blank=True
+        )
+        
+    description = models.TextField(
+        blank=True,
+        help_text="Telegram caption or custom notes"
+        )
+
+    # Movie Information
+    # year = models.PositiveIntegerField(
+    #     null=True,
+    #     blank=True
+    # )
+    
+
+    # release_date = models.DateField(
+    #     null=True,
+    #     blank=True
+    # )
+
+    # quality = models.CharField(
+    #     max_length=20,
+    #     blank=True
+    # )
+
+    # language = models.CharField(
+    #     max_length=50,
+    #     blank=True
+    # )
+
+    # duration = models.CharField(
+    #     max_length=30,
+    #     blank=True
+    # )
+
+    # rating = models.DecimalField(
+    #     max_digits=3,
+    #     decimal_places=1,
+    #     null=True,
+    #     blank=True
+    # )
+
+    # description = models.TextField(blank=True)
+
+    # poster = models.ImageField(
+    #     upload_to="movie_posters/",
+    #     blank=True,
+    #     null=True
+    # )
 
     file_size = models.CharField(
         max_length=30,
