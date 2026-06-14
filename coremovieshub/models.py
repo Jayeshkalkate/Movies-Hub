@@ -147,12 +147,14 @@ class TMDBMovie(models.Model):
     title_normalized = models.CharField(
         max_length=500,
         unique=True,
+        blank=True,
     )
     
     tmdb_id = models.IntegerField(
         unique=True,
         null=True,
         blank=True,
+        db_index=True,
     )
     
     backdrop_path = models.TextField(
@@ -186,11 +188,12 @@ class TMDBMovie(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(
-                fields=["title_normalized"]
-            )
+            models.Index(fields=["title"]),
+            models.Index(fields=["title_normalized"]),
+            models.Index(fields=["release_date"]),
+            models.Index(fields=["vote_average"]),
         ]
-        
+    
 # =====================================================
 # TELEGRAM MOVIES
 # =====================================================
@@ -376,6 +379,9 @@ class TelegramMovie(models.Model):
                     "telegram_message_id",
                     "channel",
                 ],
+                condition=models.Q(
+                        telegram_message_id__isnull=False
+                ),
                 name="unique_channel_message",
             )
         ]
@@ -385,17 +391,17 @@ class TelegramMovie(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.title)[:250] or "movie"
+            base_slug = slugify(self.name)[:90] or "category"
             
             slug = base_slug
-            count = 1
+            counter = 1
             
-            while TelegramMovie.objects.filter(
+            while Category.objects.filter(
                 slug=slug
             ).exclude(pk=self.pk).exists():
                 
-                slug = f"{base_slug}-{count}"
-                count += 1
+                slug = f"{base_slug}-{counter}"
+                counter += 1
                 
             self.slug = slug
                 

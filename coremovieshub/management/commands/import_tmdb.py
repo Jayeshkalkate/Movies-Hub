@@ -1,9 +1,10 @@
 import pandas as pd
-
 from datetime import datetime
+
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils.text import slugify
 
 from coremovieshub.models import TMDBMovie
 
@@ -61,8 +62,13 @@ class Command(BaseCommand):
                     try:
                         title = getattr(row, "title", None)
 
-                        if pd.isna(title) or not str(title).strip():
+                        if (
+                            pd.isna(title)
+                            or not str(title).strip()
+                        ):
                             continue
+
+                        title = str(title).strip()
 
                         tmdb_id = getattr(row, "id", None)
 
@@ -116,17 +122,30 @@ class Command(BaseCommand):
                             None,
                         )
 
+                        tmdb_id = (
+                            int(tmdb_id)
+                            if pd.notna(tmdb_id)
+                            else None
+                        )
+
+                        title_normalized = (
+                            slugify(title)
+                        )
+
+                        if tmdb_id:
+                            title_normalized = (
+                                f"{title_normalized}-{tmdb_id}"
+                            )
+
                         movies.append(
                             TMDBMovie(
-                                tmdb_id=(
-                                    int(tmdb_id)
-                                    if pd.notna(tmdb_id)
-                                    else None
-                                ),
+                                tmdb_id=tmdb_id,
 
-                                title=str(
-                                    title
-                                ).strip(),
+                                title=title,
+
+                                title_normalized=(
+                                    title_normalized
+                                ),
 
                                 overview=(
                                     str(overview)
