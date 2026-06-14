@@ -12,48 +12,54 @@ class Migration(migrations.Migration):
 
     operations = [
 
-        migrations.AddField(
-            model_name="telegrammovie",
-            name="banner",
-            field=models.URLField(
-                blank=True,
-                null=True,
-            ),
+    migrations.AddField(
+        model_name="telegrammovie",
+        name="banner",
+        field=models.URLField(
+            blank=True,
+            null=True,
         ),
+    ),
 
-        migrations.AddField(
-            model_name="telegrammovie",
-            name="overview",
-            field=models.TextField(
-                blank=True,
-            ),
+    migrations.AddField(
+        model_name="telegrammovie",
+        name="overview",
+        field=models.TextField(
+            blank=True,
         ),
+    ),
 
-        migrations.AlterField(
-            model_name="telegrammovie",
-            name="poster",
-            field=models.URLField(
-                blank=True,
-                null=True,
-            ),
+    migrations.AlterField(
+        model_name="telegrammovie",
+        name="poster",
+        field=models.URLField(
+            blank=True,
+            null=True,
         ),
+    ),
 
-        migrations.AlterField(
-            model_name="telegrammovie",
-            name="description",
-            field=models.TextField(
-                blank=True,
-                help_text="Telegram caption or custom notes",
-            ),
+    migrations.AlterField(
+        model_name="telegrammovie",
+        name="description",
+        field=models.TextField(
+            blank=True,
+            help_text="Telegram caption or custom notes",
         ),
-
-        migrations.AlterField(
-            model_name="telegrammovie",
-            name="rating",
-            field=models.FloatField(
-                blank=True,
-                null=True,
-            ),
+    ),
+    
+    migrations.RenameField(
+        model_name="telegrammovie",
+        old_name="imdb_rating",
+        new_name="rating",
         ),
+        
+    migrations.AlterField(
+        model_name="telegrammovie",
+        name="rating",
+        field=models.FloatField(
+            blank=True,
+            null=True,
+        ),
+    ),
 
-    ]
+]

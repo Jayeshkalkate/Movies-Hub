@@ -137,8 +137,11 @@ class TelegramChannel(models.Model):
 # TELEGRAM MOVIES
 # =====================================================
 
+from django.db import models
+from django.utils.text import slugify
+
 class TelegramMovie(models.Model):
-    
+
     CONTENT_TYPES = (
         ("movie", "Movie"),
         ("series", "Series"),
@@ -158,167 +161,130 @@ class TelegramMovie(models.Model):
     slug = models.SlugField(
         max_length=300,
         unique=True,
-        blank=True
+        blank=True,
+        db_index=True,
     )
 
     content_type = models.CharField(
         max_length=20,
         choices=CONTENT_TYPES,
-        default="movie"
+        default="movie",
     )
 
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
     )
 
     channel = models.ForeignKey(
         TelegramChannel,
         on_delete=models.CASCADE,
-        related_name="movies"
+        related_name="movies",
     )
 
-    # Telegram Details    
+    # Telegram Details
     telegram_message_id = models.BigIntegerField(
-    blank=True,
-    null=True
+        blank=True,
+        null=True,
     )
-    
+
     telegram_file_id = models.TextField(
         blank=True,
-        null=True
+        null=True,
     )
 
     telegram_message_link = models.URLField(
         blank=True,
-        null=True
+        null=True,
     )
-    
+
     # Movie Information
     year = models.PositiveIntegerField(
         null=True,
-        blank=True
-        )
-    
+        blank=True,
+    )
+
     release_date = models.DateField(
         null=True,
-        blank=True
-        )
-    
+        blank=True,
+    )
+
     quality = models.CharField(
         max_length=20,
-        blank=True
-        )
-    
+        blank=True,
+    )
+
     language = models.CharField(
         max_length=50,
-        blank=True
-        )
-    
+        blank=True,
+    )
+
     duration = models.CharField(
         max_length=30,
-        blank=True
-        )
-    
+        blank=True,
+    )
+
+    # TMDB Information
     poster = models.URLField(
         blank=True,
-        null=True
-        )
-    
+        null=True,
+    )
+
     banner = models.URLField(
         blank=True,
-        null=True
-        )
-    
+        null=True,
+    )
+
     overview = models.TextField(
-        blank=True
-        )
-        
+        blank=True,
+        default="",
+    )
+
     rating = models.FloatField(
         null=True,
-        blank=True
-        )
-        
+        blank=True,
+    )
+
     description = models.TextField(
         blank=True,
-        help_text="Telegram caption or custom notes"
-        )
-
-    # Movie Information
-    # year = models.PositiveIntegerField(
-    #     null=True,
-    #     blank=True
-    # )
-    
-
-    # release_date = models.DateField(
-    #     null=True,
-    #     blank=True
-    # )
-
-    # quality = models.CharField(
-    #     max_length=20,
-    #     blank=True
-    # )
-
-    # language = models.CharField(
-    #     max_length=50,
-    #     blank=True
-    # )
-
-    # duration = models.CharField(
-    #     max_length=30,
-    #     blank=True
-    # )
-
-    # rating = models.DecimalField(
-    #     max_digits=3,
-    #     decimal_places=1,
-    #     null=True,
-    #     blank=True
-    # )
-
-    # description = models.TextField(blank=True)
-
-    # poster = models.ImageField(
-    #     upload_to="movie_posters/",
-    #     blank=True,
-    #     null=True
-    # )
+        default="",
+        help_text="Telegram caption or custom notes",
+    )
 
     file_size = models.CharField(
         max_length=30,
-        blank=True
+        blank=True,
     )
 
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default="completed"
+        default="completed",
     )
 
     # Series Information
     season = models.PositiveIntegerField(
         null=True,
-        blank=True
+        blank=True,
     )
 
     episode = models.PositiveIntegerField(
         null=True,
-        blank=True
+        blank=True,
     )
 
     # Search Tags
     tags = models.CharField(
         max_length=500,
         blank=True,
-        help_text="Comma separated tags"
+        help_text="Comma separated tags",
     )
 
     # Statistics
     views = models.PositiveIntegerField(default=0)
+
     downloads = models.PositiveIntegerField(default=0)
 
     is_featured = models.BooleanField(default=False)
@@ -326,9 +292,13 @@ class TelegramMovie(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ["-created_at"]
+
+        verbose_name = "Telegram Movie"
+        verbose_name_plural = "Telegram Movies"
+
         indexes = [
             models.Index(fields=["title"]),
             models.Index(fields=["year"]),
@@ -337,19 +307,38 @@ class TelegramMovie(models.Model):
             models.Index(fields=["content_type"]),
             models.Index(fields=["is_featured"]),
             models.Index(fields=["created_at"]),
-            ]
-        
+            models.Index(fields=["slug"]),
+        ]
+
         constraints = [
             models.UniqueConstraint(
                 fields=[
                     "telegram_message_id",
-                    "channel"
-                    ],
-                name="unique_channel_message"
-                )
-             ]
-        
-    from django.utils.text import slugify
+                    "channel",
+                ],
+                name="unique_channel_message",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        """
+        Automatically generate slug from title.
+        """
+        if not self.slug:
+            base_slug = slugify(self.title)
+            slug = base_slug
+            counter = 1
+
+            while TelegramMovie.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
     
     def save(self, *args, **kwargs):
         if not self.slug:

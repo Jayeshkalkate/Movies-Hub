@@ -403,3 +403,9 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 EMAIL_TIMEOUT = 30
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# --------------------------------------------------
+# API KEY
+# --------------------------------------------------
+
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
