@@ -541,10 +541,10 @@ def delete_movie(request, movie_id):
 
     if request.method == "POST":
 
-        if movie.poster:
-            movie.poster.delete(
-                save=False
-            )
+        # if movie.poster:
+        #     movie.poster.delete(
+        #         save=False
+        #     )
 
         movie.delete()
 

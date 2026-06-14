@@ -13,19 +13,50 @@ def clean_caption(text):
 
 
 def extract_title(text):
+
     if not text:
         return ""
 
-    first_line = text.split("\n")[0]
+    title = text.split("\n")[0]
 
-    first_line = re.sub(
-        r"S\d+.*",
-        "",
-        first_line,
-        flags=re.I
-    )
+    patterns = [
+        r"\b2160p\b",
+        r"\b1080p\b",
+        r"\b720p\b",
+        r"\b480p\b",
+        r"\bWEB[- ]DL\b",
+        r"\bBluRay\b",
+        r"\bHDRip\b",
+        r"\bHindi\b",
+        r"\bEnglish\b",
+        r"\bDual Audio\b",
+        r"\b\d{4}\b",
+    ]
 
-    return first_line.strip()
+    for pattern in patterns:
+        title = re.sub(
+            pattern,
+            "",
+            title,
+            flags=re.I
+        )
+        
+        title = title.replace(".", " ")
+        
+        title = re.sub(
+            r"\b(x264|x265|AAC|HEVC)\b",
+            "",
+            title,
+            flags=re.I,
+        )
+        
+        title = re.sub(
+            r"\s+",
+            " ",
+            title,
+        )
+
+    return title.strip()
 
 
 def extract_season(text):

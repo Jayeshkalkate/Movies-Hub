@@ -8,13 +8,13 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-
+from coremovieshub.utils.movie_metadata import (
+    search_movie_metadata,
+)
 from asgiref.sync import sync_to_async
-from django.utils.text import slugify
-
+import traceback
 from django.conf import settings
 from django.utils import timezone
-from asgiref.sync import sync_to_async
 from django.utils.text import slugify
 
 from coremovieshub.models import (
@@ -25,10 +25,6 @@ from coremovieshub.models import (
 )
 
 from coremovieshub.telegram_utils import check_telegram_membership
-
-from telegram.ext import Application
-from asgiref.sync import async_to_sync
-
 import logging
 
 from coremovieshub.utils.movie_parser import (
@@ -55,9 +51,16 @@ def verify_membership(telegram_id, verification_code=None):
         # Verification via deep-link code
         if verification_code:
 
-            verification = MembershipVerification.objects.get(
-                verification_code=verification_code
-            )
+            verification = (
+                MembershipVerification.objects
+                .filter(
+                    verification_code=verification_code
+                    )
+                .first()
+                )
+            
+            if not verification:
+                return "invalid_code"
 
             verification.telegram_id = str(telegram_id)
             verification.telegram_username = (
@@ -68,7 +71,14 @@ def verify_membership(telegram_id, verification_code=None):
             
             verification.save()
 
-            if check_telegram_membership(telegram_id):
+            all_joined = all(
+                check_telegram_membership(
+                    telegram_id,
+                    channel
+                    )
+                for channel in REQUIRED_CHANNELS
+                )
+            if all_joined:
 
                 verification.membership_status = True
                 verification.verified_at = timezone.now()
@@ -89,7 +99,15 @@ def verify_membership(telegram_id, verification_code=None):
         if not verification:
             return "verification_not_found"
 
-        if check_telegram_membership(telegram_id):
+        all_joined = all(
+            check_telegram_membership(
+                telegram_id,
+                channel
+                )
+            for channel in REQUIRED_CHANNELS
+            )
+        
+        if all_joined:
 
             verification.membership_status = True
             verification.verified_at = timezone.now()
@@ -308,19 +326,21 @@ def save_movie(
     message_link,
     year,
     quality,
+    release_date,
     description="",
 ):
     TelegramMovie.objects.create(
         title=title,
         category=category,
         channel=channel,
+        release_date=release_date,
         telegram_message_id=message_id,
         telegram_file_id=file_id,
         telegram_message_link=message_link,
         year=year,
         quality=quality,
-        language=extract_language(description),
         description=clean_caption(description),
+        language=extract_language(description),
         season=extract_season(description),
         )
 
@@ -510,7 +530,9 @@ def search_movie_db(query):
     return list(
         TelegramMovie.objects.filter(
             title__icontains=query
-        )
+            ).order_by(
+                "-created_at"
+                )
         .select_related(
             "category",
             "channel"
@@ -562,81 +584,6 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )
-
-# @sync_to_async
-# def save_channel_movie(post, channel, media):
-#     caption = post.caption or ""
-
-#     title = extract_title(caption)
-
-#     if not title:
-#         title = (
-#             getattr(media, "file_name", None)
-#             or "Untitled Movie"
-#         )
-
-#     chat_id = str(channel.chat_id)
-
-#     if chat_id.startswith("-100"):
-#         chat_id = chat_id[4:]
-
-#     message_link = (
-#         f"https://t.me/c/{chat_id}/{post.message_id}"
-#     )
-
-#     print("MESSAGE ID:", post.message_id)
-#     print("CHANNEL ID:", channel.chat_id)
-#     print("MESSAGE LINK:", message_link)
-
-#     existing = TelegramMovie.objects.filter(
-#         telegram_message_id=post.message_id,
-#         channel=channel
-#     ).exists()
-
-#     if existing:
-#         print("Movie already exists:", post.message_id)
-#         return None
-
-#     try:
-#         movie = TelegramMovie.objects.create(
-#             title=title[:255],
-#             slug=slugify(title)[:300],
-#             content_type="movie",
-#             category=channel.category,
-#             channel=channel,
-#             telegram_message_id=post.message_id,
-#             telegram_file_id=media.file_id,
-#             telegram_message_link=message_link,
-#             quality=extract_quality(caption),
-#             description=clean_caption(caption),
-#         )
-
-#         print("=" * 50)
-#         print("MOVIE ACTUALLY SAVED")
-#         print("DATABASE ID:", movie.id)
-#         print("TITLE:", movie.title)
-#         print("MESSAGE ID:", movie.telegram_message_id)
-#         print("=" * 50)
-
-#         return movie
-
-#     except Exception as e:
-#         import traceback
-
-#         print("=" * 50)
-#         print("DATABASE SAVE FAILED")
-#         print(type(e).__name__)
-#         print(str(e))
-#         traceback.print_exc()
-#         print("=" * 50)
-
-#         raise
-
-from asgiref.sync import sync_to_async
-from django.utils.text import slugify
-import traceback
-
-
 @sync_to_async
 def save_channel_movie(post, channel, media):
     caption = post.caption or ""
@@ -671,7 +618,7 @@ def save_channel_movie(post, channel, media):
     # Duplicate check
     existing = TelegramMovie.objects.filter(
         telegram_message_id=post.message_id,
-        channel=channel
+        channel=channel,
     ).exists()
 
     if existing:
@@ -682,24 +629,73 @@ def save_channel_movie(post, channel, media):
         return None
 
     try:
+        # Fetch metadata from TMDB
+        metadata = search_movie_metadata(
+            title
+        )
+
+        poster = ""
+        banner = ""
+        overview = ""
+        rating = None
+        release_date = None
+        
+        if metadata:
+            release_date = metadata.get(
+                "release_date"
+            )
+
+        if metadata:
+            poster = metadata["poster"]
+            banner = metadata["banner"]
+            overview = metadata["overview"]
+            rating = metadata["rating"]
+            
+        if not poster and getattr(media, "thumbnail", None):
+            poster = "telegram_thumbnail"
+            
         movie = TelegramMovie.objects.create(
             title=title[:255],
-            slug=slugify(title)[:300],
             content_type="movie",
             category=channel.category,
             channel=channel,
+            release_date=release_date,
             telegram_message_id=post.message_id,
             telegram_file_id=media.file_id,
             telegram_message_link=message_link,
             quality=extract_quality(caption),
             description=clean_caption(caption),
-        )
-
-        print("=" * 60)
-        print("SAVED TO DATABASE")
+            
+            # TMDB Metadata
+            poster=poster,
+            banner=banner,
+            overview=overview,
+            rating=rating,
+            
+            # Telegram media metadata
+            file_size=(
+                f"{round(media.file_size / (1024 ** 3), 2)} GB"
+                if getattr(media, "file_size", None)
+                and media.file_size >= (1024 ** 3)
+                else (
+                    f"{round(media.file_size / (1024 ** 2), 2)} MB"
+                    if getattr(media, "file_size", None)
+                    else ""
+                    )
+                ),
+                
+                duration=(
+                    str(media.duration)
+                    if getattr(media, "duration", None)
+                    else ""
+                    ),
+                )
+            
         print("DATABASE ID:", movie.pk)
         print("TITLE:", movie.title)
         print("MESSAGE ID:", movie.telegram_message_id)
+        print("POSTER:", poster)
+        print("RATING:", rating)
         print("=" * 60)
 
         # Verify immediately after save
@@ -718,8 +714,10 @@ def save_channel_movie(post, channel, media):
             print("DATABASE VERIFICATION SUCCESSFUL")
             print("VERIFIED ID:", verified_movie.pk)
             print("VERIFIED TITLE:", verified_movie.title)
-            print("VERIFIED MESSAGE ID:",
-                  verified_movie.telegram_message_id)
+            print(
+                "VERIFIED MESSAGE ID:",
+                verified_movie.telegram_message_id
+            )
             print("=" * 60)
         else:
             print("=" * 60)
@@ -737,7 +735,7 @@ def save_channel_movie(post, channel, media):
         print("=" * 60)
 
         raise
-    
+        
 async def handle_channel_post(update, context):
     print("=" * 60)
     print("CHANNEL HANDLER FIRED")
