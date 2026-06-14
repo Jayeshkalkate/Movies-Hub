@@ -639,13 +639,9 @@ def save_channel_movie(post, channel, media):
         overview = ""
         rating = None
         release_date = None
-        
-        if metadata:
-            release_date = metadata.get(
-                "release_date"
-            )
 
         if metadata:
+            release_date = metadata.get("release_date")
             poster = metadata["poster"]
             banner = metadata["banner"]
             overview = metadata["overview"]
@@ -681,16 +677,16 @@ def save_channel_movie(post, channel, media):
                     f"{round(media.file_size / (1024 ** 2), 2)} MB"
                     if getattr(media, "file_size", None)
                     else ""
-                    )
-                ),
-                
-                duration=(
-                    str(media.duration)
-                    if getattr(media, "duration", None)
-                    else ""
-                    ),
                 )
+            ),
             
+            duration=(
+                str(media.duration)
+                if getattr(media, "duration", None)
+                else ""
+            ),
+            )
+        
         print("DATABASE ID:", movie.pk)
         print("TITLE:", movie.title)
         print("MESSAGE ID:", movie.telegram_message_id)
