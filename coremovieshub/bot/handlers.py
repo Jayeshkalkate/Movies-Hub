@@ -1,19 +1,18 @@
+import logging
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-
+logger = logging.getLogger(__name__)
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
 from coremovieshub.services.movie_metadata import search_movie_metadata
 from asgiref.sync import sync_to_async
-import traceback
 from django.conf import settings
 from django.utils import timezone
-from django.utils.text import slugify
 
 from coremovieshub.models import (
     MembershipVerification,
@@ -23,7 +22,6 @@ from coremovieshub.models import (
 )
 
 from coremovieshub.telegram_utils import check_telegram_membership
-import logging
 
 from coremovieshub.utils.movie_parser import (
     clean_caption,
@@ -32,8 +30,6 @@ from coremovieshub.utils.movie_parser import (
     extract_language,
     extract_season,
 )
-
-logger = logging.getLogger(__name__)
 
 REQUIRED_CHANNELS = [
     settings.MAIN_CHANNEL_ID,
@@ -118,8 +114,10 @@ def verify_membership(telegram_id, verification_code=None):
     except MembershipVerification.DoesNotExist:
         return "invalid_code"
 
-    except Exception as e:
-        print(f"Membership verification error: {e}")
+    except Exception:
+        logger.exception(
+            "Membership verification failed"
+        )
         return "error"
 
 async def start(
@@ -269,15 +267,13 @@ async def start(
                 "⚠️ Verification could not be completed.\n\n"
                 "Please try again later."
             )
-
-    except Exception as e:
-
+            
+    except Exception:
         logger.exception(
-            "Error during verification for Telegram ID %s: %s",
+            "Error during verification for Telegram ID %s",
             telegram_id,
-            str(e)
         )
-
+        
         await update.message.reply_text(
             "❌ An unexpected error occurred while processing "
             "your verification request.\n\n"
@@ -293,8 +289,21 @@ TITLE, CATEGORY_STATE, YEAR, QUALITY, UPLOAD = range(5)
 
 # Improvement 1: Safer admin check
 def user_has_staff_access(user_id):
-    admin_ids = getattr(settings, "TELEGRAM_ADMIN_IDS", [])
-    return int(user_id) in [int(x) for x in admin_ids]
+    try:
+        admin_ids = {
+            int(x)
+            for x in getattr(
+                settings,
+                "TELEGRAM_ADMIN_IDS",
+                []
+            )
+            if str(x).strip()
+        }
+
+        return int(user_id) in admin_ids
+
+    except Exception:
+        return False
 
 
 @sync_to_async
@@ -434,7 +443,7 @@ async def quality_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    video = update.message.video
+    video = ( update.message.video or update.message.document )
 
     if not video:
         await update.message.reply_text(
@@ -451,9 +460,12 @@ async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    try:
-        target_channel = await get_channel_for_category(category)
-    except TelegramChannel.DoesNotExist:
+    # try:
+    target_channel = await get_channel_for_category(
+            category
+        )
+        
+    if not target_channel:
         await update.message.reply_text(
             "❌ No Telegram channel configured for this category."
         )
@@ -470,13 +482,21 @@ async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎥 Quality: {context.user_data['quality']}"
     )
 
-    sent_message = await context.bot.send_video(
-        chat_id=target_channel.chat_id,
-        video=video.file_id,
-        caption=caption,
-        supports_streaming=True
+    if update.message.video:
+        sent_message = await context.bot.send_video(
+            chat_id=target_channel.chat_id,
+            video=video.file_id,
+            caption=caption,
+            supports_streaming=True,
     )
-
+        
+    else:
+        sent_message = await context.bot.send_document(
+            chat_id=target_channel.chat_id,
+            document=video.file_id,
+            caption=caption,
+    )
+                
     chat_id = str(target_channel.chat_id)
 
     if chat_id.startswith("-100"):
@@ -603,28 +623,29 @@ def save_channel_movie(post, channel, media):
         f"https://t.me/c/{chat_id}/{post.message_id}"
     )
 
-    print("=" * 60)
-    print("SAVE_CHANNEL_MOVIE STARTED")
-    print("TITLE:", title)
-    print("MESSAGE ID:", post.message_id)
-    print("CHANNEL ID:", channel.chat_id)
-    print("MESSAGE LINK:", message_link)
-    print("MEDIA TYPE:", type(media).__name__)
-    print("FILE ID:", media.file_id)
-    print("=" * 60)
-
-    # Duplicate check
-    existing = TelegramMovie.objects.filter(
-        telegram_message_id=post.message_id,
-        channel=channel,
-    ).exists()
-
-    if existing:
-        print("=" * 60)
-        print("MOVIE ALREADY EXISTS")
-        print("MESSAGE ID:", post.message_id)
-        print("=" * 60)
-        return None
+    logger.info("=" * 60)
+    logger.info("SAVE_CHANNEL_MOVIE STARTED")
+    logger.info("TITLE: %s", title)
+    logger.info("MESSAGE ID: %s", 
+                post.message_id,
+    )
+    logger.info(
+        "CHANNEL ID: %s",
+        channel.chat_id,
+    )
+    logger.info(
+        "MESSAGE LINK: %s",
+        message_link,
+    )
+    logger.info(
+        "MEDIA TYPE: %s",
+        type(media).__name__,
+    )
+    logger.info(
+        "FILE ID: %s",
+        media.file_id,
+    )
+    logger.info("=" * 60)
 
     try:
         # Fetch metadata from TMDB
@@ -647,92 +668,64 @@ def save_channel_movie(post, channel, media):
             
         if not poster and getattr(media, "thumbnail", None):
             poster = "telegram_thumbnail"
-            
-        movie = TelegramMovie.objects.create(
-            title=title[:255],
-            content_type="movie",
-            category=channel.category,
-            channel=channel,
-            release_date=release_date,
-            telegram_message_id=post.message_id,
-            telegram_file_id=media.file_id,
-            telegram_message_link=message_link,
-            quality=extract_quality(caption),
-            description=clean_caption(caption),
-            
-            # TMDB Metadata
-            poster=poster,
-            banner=banner,
-            overview=overview,
-            rating=rating,
-            
-            # Telegram media metadata
-            file_size=(
-                f"{round(media.file_size / (1024 ** 3), 2)} GB"
-                if getattr(media, "file_size", None)
-                and media.file_size >= (1024 ** 3)
-                else (
-                    f"{round(media.file_size / (1024 ** 2), 2)} MB"
-                    if getattr(media, "file_size", None)
-                    else ""
-                )
-            ),
-            
-            duration=(
-                str(media.duration)
-                if getattr(media, "duration", None)
-                else ""
-            ),
-            )
         
-        print("DATABASE ID:", movie.pk)
-        print("TITLE:", movie.title)
-        print("MESSAGE ID:", movie.telegram_message_id)
-        print("POSTER:", poster)
-        print("RATING:", rating)
-        print("=" * 60)
+        movie, created = TelegramMovie.objects.get_or_create(
+            telegram_message_id=post.message_id,
+            channel=channel,
+            defaults={
+                "title": title[:255],
+                "content_type": "movie",
+                "category": channel.category,
+                "release_date": release_date,
+                "telegram_file_id": media.file_id,
+                "telegram_message_link": message_link,
+                "quality": extract_quality(caption),
+                "description": clean_caption(caption),
+                "poster": poster,
+                "banner": banner,
+                "overview": overview,
+                "rating": rating,
+                "file_size": (
+                    f"{round(media.file_size / (1024 ** 3), 2)} GB"
+                    if getattr(media, "file_size", None)
+                    and media.file_size >= (1024 ** 3)
+                    else (
+                        f"{round(media.file_size / (1024 ** 2), 2)} MB"
+                        if getattr(media, "file_size", None)
+                        else ""
+                    )
+                ),
+                "duration": (
+                    str(media.duration)
+                    if getattr(media, "duration", None)
+                    else ""
+                ),
+            },
+        )
+                            
+        if not created:
+            logger.info("MOVIE ALREADY EXISTS")
+            return movie
 
-        # Verify immediately after save
-        exists = TelegramMovie.objects.filter(
-            pk=movie.pk
-        ).exists()
-
-        print("EXISTS AFTER SAVE:", exists)
-
-        if exists:
-            verified_movie = TelegramMovie.objects.get(
-                pk=movie.pk
-            )
-
-            print("=" * 60)
-            print("DATABASE VERIFICATION SUCCESSFUL")
-            print("VERIFIED ID:", verified_movie.pk)
-            print("VERIFIED TITLE:", verified_movie.title)
-            print(
-                "VERIFIED MESSAGE ID:",
-                verified_movie.telegram_message_id
-            )
-            print("=" * 60)
-        else:
-            print("=" * 60)
-            print("WARNING: OBJECT NOT FOUND AFTER SAVE")
-            print("=" * 60)
-
+        
+        logger.info("DATABASE ID: %s", movie.pk)
+        logger.info("TITLE: %s", movie.title)
+        logger.info("MESSAGE ID: %s", movie.telegram_message_id)
+        logger.info("POSTER: %s", poster)
+        logger.info("RATING: %s", rating)
+        logger.info("=" * 60)
         return movie
 
-    except Exception as e:
-        print("=" * 60)
-        print("DATABASE SAVE FAILED")
-        print("ERROR TYPE:", type(e).__name__)
-        print("ERROR:", str(e))
-        traceback.print_exc()
-        print("=" * 60)
-
+    except Exception:
+        logger.exception(
+            "DATABASE SAVE FAILED"
+        )
+        
         raise
         
 async def handle_channel_post(update, context):
-    print("=" * 60)
-    print("CHANNEL HANDLER FIRED")
+    logger.info("=" * 60)
+    logger.info("CHANNEL HANDLER FIRED")
 
     # post = update.channel_post
     
@@ -742,29 +735,64 @@ async def handle_channel_post(update, context):
         return
 
     if not post:
-        print("NO CHANNEL POST")
+        logger.info("NO CHANNEL POST")
         return
 
-    print("CHAT ID:", post.chat.id)
-    print("VIDEO:", bool(post.video))
-    print("DOCUMENT:", bool(post.document))
-    print("CAPTION:", post.caption)
-
+    logger.info(
+        "CHANNEL FOUND ID: %s",
+        channel.id,
+    )
+    
+    logger.info(
+        "CHANNEL FOUND NAME: %s",
+        channel.name,
+    )
+    
+    logger.info(
+        "CHANNEL CHAT ID: %s",
+        channel.chat_id,
+    )
+    
+    logger.info(
+        "MESSAGE LINK: %s",
+        message_link,
+    )
+    
+    logger.info(
+        "CHAT ID: %s",
+        post.chat.id,
+    )
+    
+    logger.info(
+        "VIDEO: %s",
+        bool(post.video),
+    )
+    
+    logger.info(
+        "DOCUMENT: %s",
+        bool(post.document),
+    )
+    
+    logger.info(
+        "CAPTION: %s",
+        post.caption,
+    )
+    
     # Support both videos and MKV documents
     media = post.video or post.document
 
     if not media:
-        print("NO VIDEO OR DOCUMENT FOUND")
+        logger.info("NO VIDEO OR DOCUMENT FOUND")
         return
 
     if post.document:
-        print(
+        logger.info(
             "DOCUMENT NAME:",
             getattr(post.document, "file_name", "Unknown")
         )
 
     if post.video:
-        print("VIDEO RECEIVED")
+        logger.info("VIDEO RECEIVED")
 
     chat_id = str(post.chat.id)
 
@@ -777,12 +805,11 @@ async def handle_channel_post(update, context):
     )()
 
     if not channel:
-        print(f"CHANNEL NOT FOUND: {chat_id}")
+        logger.warning(
+            "CHANNEL NOT FOUND: %s",
+            chat_id,
+        )
         return
-
-    print("CHANNEL FOUND ID:", channel.id)
-    print("CHANNEL FOUND NAME:", channel.name)
-    print("CHANNEL CHAT ID:", channel.chat_id)
 
     try:
         caption = post.caption or ""
@@ -817,13 +844,11 @@ async def handle_channel_post(update, context):
             media
             )
 
-        print("✅ MOVIE SAVED SUCCESSFULLY")
-        print("MESSAGE LINK:", message_link)
+        logger.info("✅ MOVIE SAVED SUCCESSFULLY")
 
-    except Exception as e:
-        import traceback
+    except Exception:
+        logger.exception(
+            "DATABASE SAVE FAILED"
+        )
 
-        print("❌ SAVE ERROR:", str(e))
-        traceback.print_exc()
-
-    print("=" * 60)
+    logger.info("=" * 60)

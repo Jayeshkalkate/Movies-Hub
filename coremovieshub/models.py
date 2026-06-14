@@ -33,7 +33,9 @@ class Category(models.Model):
         ordering = ["name"]
 
     def save(self, *args, **kwargs):
-        self.slug = slugify(self.name)
+        if not self.slug:
+            self.slug = slugify(self.name)
+            
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -61,8 +63,7 @@ class Video(models.Model):
 
     def __str__(self):
         return self.title
-
-
+    
 # =====================================================
 # TELEGRAM MEMBERSHIP VERIFICATION
 # =====================================================
@@ -179,6 +180,9 @@ class TMDBMovie(models.Model):
         null=True,
         blank=True,
     )
+    
+    def __str__(self):
+        return self.title
 
     class Meta:
         indexes = [
@@ -308,6 +312,11 @@ class TelegramMovie(models.Model):
         max_length=30,
         blank=True,
     )
+    
+    file_size_bytes = models.BigIntegerField(
+        null=True,
+        blank=True,
+    )
 
     status = models.CharField(
         max_length=20,
@@ -392,17 +401,16 @@ class TelegramMovie(models.Model):
                 
         super().save(*args, **kwargs)
                 
+
     @property
     def can_download_from_website(self):
         
-        try:
-            return float(self.file_size) <= 2
-        
-        except Exception:
+        if self.file_size_bytes is None:
             return False
-                    
-    def __str__(self):
-        return self.title
+            
+        return self.file_size_bytes <= (
+                2 * 1024 * 1024 * 1024
+        )
 
 
 # =====================================================
@@ -423,7 +431,12 @@ class WatchList(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("user", "movie")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "movie"],
+                name="unique_watchlist",
+            )
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.movie.title}"
@@ -448,4 +461,11 @@ class DownloadHistory(models.Model):
 
     def __str__(self):
         return f"{self.user.username} downloaded {self.movie.title}"
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["movie"]),
+            models.Index(fields=["downloaded_at"]),
+        ]
     

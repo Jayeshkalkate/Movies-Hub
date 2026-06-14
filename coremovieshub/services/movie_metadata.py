@@ -35,7 +35,7 @@ def search_movie_metadata(title):
         movie = (
             TMDBMovie.objects
             .filter(
-                title__icontains=title
+                title__istartswith=title
             )
             .first()
         )
