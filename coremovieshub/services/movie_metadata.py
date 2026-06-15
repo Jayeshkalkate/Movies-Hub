@@ -1,42 +1,26 @@
 from coremovieshub.models import TMDBMovie
 
-
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 
 
 def search_movie_metadata(title):
-    """
-    Search TMDB metadata from PostgreSQL.
-
-    Returns:
-        dict | None
-    """
 
     if not title:
         return None
 
     title = title.strip()
 
-    # --------------------------------------------------
-    # Exact match
-    # --------------------------------------------------
     movie = (
         TMDBMovie.objects
-        .filter(
-            title__iexact=title
-        )
+        .filter(title__iexact=title)
         .first()
     )
 
-    # --------------------------------------------------
-    # Partial match fallback
-    # --------------------------------------------------
     if not movie:
         movie = (
             TMDBMovie.objects
-            .filter(
-                title__istartswith=title
-            )
+            .filter(title__icontains=title)
+            .order_by("-vote_average")
             .first()
         )
 
@@ -45,31 +29,20 @@ def search_movie_metadata(title):
 
     return {
         "poster": (
-            f"{TMDB_IMAGE_BASE}/w500"
-            f"{movie.poster_path}"
+            f"{TMDB_IMAGE_BASE}/w500{movie.poster_path}"
             if movie.poster_path
-            else ""
-        ),
-
-        "banner": (
-            f"{TMDB_IMAGE_BASE}/original"
-            f"{movie.backdrop_path}"
-            if movie.backdrop_path
-            else ""
-        ),
-
-        "overview": (
-            movie.overview
-            or ""
-        ),
-
-        "rating": (
-            float(movie.vote_average)
-            if movie.vote_average is not None
             else None
         ),
 
-        "release_date": (
-            movie.release_date
+        "banner": (
+            f"{TMDB_IMAGE_BASE}/original{movie.backdrop_path}"
+            if movie.backdrop_path
+            else None
         ),
+
+        "overview": movie.overview or "",
+
+        "rating": movie.vote_average,
+
+        "release_date": movie.release_date,
     }

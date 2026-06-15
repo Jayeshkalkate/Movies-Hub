@@ -128,13 +128,7 @@ def website_download(request, movie_id):
         id=movie_id
     )
 
-    try:
-        file_size_gb = float(movie.file_size)
-    except (ValueError, TypeError):
-        file_size_gb = 0
-
-    if file_size_gb > 2:
-
+    if not movie.can_download_from_website:
         messages.warning(
             request,
             (
@@ -142,10 +136,9 @@ def website_download(request, movie_id):
                 "Please use Telegram download."
             )
         )
-
         return redirect(
             "download_movie",
-            movie_id=movie.id
+            movie_id=movie.id,
         )
 
     verification, created = (
@@ -970,6 +963,10 @@ def upload_movie(request):
                         sent_message.video.file_size / (1024 ** 3),
                         2
                     )
+                )
+                
+                movie.file_size_bytes = (
+                    sent_message.video.file_size
                 )
 
             chat_link_part = str(channel.chat_id)

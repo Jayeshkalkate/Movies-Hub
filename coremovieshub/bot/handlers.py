@@ -87,8 +87,8 @@ def verify_membership(telegram_id, verification_code=None):
             telegram_id=str(telegram_id),
             defaults={
                 "membership_status": False,
-                }
-            )
+            }
+        )
 
         if not verification:
             return "verification_not_found"
@@ -653,21 +653,41 @@ def save_channel_movie(post, channel, media):
             title
         )
 
-        poster = ""
-        banner = ""
-        overview = ""
+        poster = None
+        banner = None
+        overview = clean_caption(caption)
         rating = None
         release_date = None
-
+        
         if metadata:
-            release_date = metadata.get("release_date")
-            poster = metadata["poster"]
-            banner = metadata["banner"]
-            overview = metadata["overview"]
-            rating = metadata["rating"]
             
-        if not poster and getattr(media, "thumbnail", None):
-            poster = "telegram_thumbnail"
+            poster = (
+                metadata.get("poster")
+                or poster
+            )
+            
+            banner = (
+                metadata.get("banner")
+                or banner
+            )
+            
+            overview = (
+                metadata.get("overview")
+                or overview
+            )
+            
+            rating = (
+                metadata.get("rating")
+                or rating
+            )
+            
+            release_date = (
+                metadata.get("release_date")
+                or release_date
+            )
+            
+        if not banner:
+            banner = poster
         
         movie, created = TelegramMovie.objects.get_or_create(
             telegram_message_id=post.message_id,
@@ -699,6 +719,11 @@ def save_channel_movie(post, channel, media):
                     str(media.duration)
                     if getattr(media, "duration", None)
                     else ""
+                ),
+                "file_size_bytes": getattr(
+                    media,
+                    "file_size",
+                    None,
                 ),
             },
         )
@@ -737,26 +762,6 @@ async def handle_channel_post(update, context):
     if not post:
         logger.info("NO CHANNEL POST")
         return
-
-    logger.info(
-        "CHANNEL FOUND ID: %s",
-        channel.id,
-    )
-    
-    logger.info(
-        "CHANNEL FOUND NAME: %s",
-        channel.name,
-    )
-    
-    logger.info(
-        "CHANNEL CHAT ID: %s",
-        channel.chat_id,
-    )
-    
-    logger.info(
-        "MESSAGE LINK: %s",
-        message_link,
-    )
     
     logger.info(
         "CHAT ID: %s",
@@ -803,7 +808,7 @@ async def handle_channel_post(update, context):
             chat_id=chat_id
         ).first()
     )()
-
+    
     if not channel:
         logger.warning(
             "CHANNEL NOT FOUND: %s",
@@ -811,6 +816,19 @@ async def handle_channel_post(update, context):
         )
         return
 
+    logger.info("CHANNEL FOUND ID: %s", channel.id)
+    logger.info("CHANNEL FOUND NAME: %s", channel.name)
+    logger.info("CHANNEL CHAT ID: %s", channel.chat_id)
+    # message_link = (
+    #     f"https://t.me/c/"
+    #     f"{chat_id_for_link}/"
+    #     f"{post.message_id}"
+    # )
+    # logger.info(
+    #     "MESSAGE LINK: %s",
+    #     message_link,
+    # )
+    
     try:
         caption = post.caption or ""
 
