@@ -391,7 +391,7 @@ class TelegramMovie(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.name)[:90] or "category"
+            base_slug = slugify(self.title)[:90] or "movie"
             
             slug = base_slug
             counter = 1
