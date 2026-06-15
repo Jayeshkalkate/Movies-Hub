@@ -608,11 +608,18 @@ def save_channel_movie(post, channel, media):
 
     title = extract_title(caption)
 
+    logger.info("RAW CAPTION: %s", caption)
+    logger.info("EXTRACTED TITLE: %s", title)
+
     if not title:
-        title = (
-            getattr(media, "file_name", None)
-            or "Untitled Movie"
-        )
+        filename = getattr(media, "file_name", "")
+
+        logger.info("USING FILE NAME: %s", filename)
+
+        title = extract_title(filename)
+
+        if not title:
+            title = "Untitled Movie"
 
     chat_id = str(channel.chat_id)
 
@@ -649,13 +656,21 @@ def save_channel_movie(post, channel, media):
 
     try:
         # Fetch metadata from TMDB
-        metadata = search_movie_metadata(
-            title
+        logger.info("SEARCHING TMDB FOR: %s", title)
+        metadata = search_movie_metadata(title)
+        logger.info("POSTER URL: %s",
+                metadata.get("poster") if metadata else None
         )
+        
+        logger.info("RELEASE DATE: %s",
+                metadata.get("release_date") if metadata else None
+        )
+
+        logger.info("TMDB RESULT: %s", metadata)
 
         poster = None
         banner = None
-        overview = clean_caption(caption)
+        overview = clean_caption(caption)[:1000]
         rating = None
         release_date = None
         
@@ -792,7 +807,7 @@ async def handle_channel_post(update, context):
 
     if post.document:
         logger.info(
-            "DOCUMENT NAME:",
+            "DOCUMENT NAME: %s",
             getattr(post.document, "file_name", "Unknown")
         )
 

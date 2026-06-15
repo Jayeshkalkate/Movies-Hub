@@ -2,7 +2,6 @@ from coremovieshub.models import TMDBMovie
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 
-
 def search_movie_metadata(title):
 
     if not title:
@@ -15,14 +14,18 @@ def search_movie_metadata(title):
         .filter(title__iexact=title)
         .first()
     )
+    
+    print(f"TMDB Exact Search: {title} -> {movie}")
 
     if not movie:
         movie = (
             TMDBMovie.objects
             .filter(title__icontains=title)
-            .order_by("-vote_average")
+            .order_by("-release_date")
             .first()
         )
+        
+        print(f"TMDB Contains Search: {title} -> {movie}")
 
     if not movie:
         return None

@@ -37,24 +37,58 @@ def extract_title(text):
     Extract a clean movie title
     from Telegram captions.
     """
+
     if not text:
         return ""
 
     title = str(text).split("\n")[0]
 
+    title = title.replace(".", " ")
+    title = title.replace("-", " ")
+    title = title.replace("_", " ")
+    
     patterns = [
         r"\b2160p\b",
         r"\b1440p\b",
         r"\b1080p\b",
         r"\b720p\b",
         r"\b480p\b",
+        
         r"\bWEB[- ]DL\b",
+        r"\bWEBRip\b",
         r"\bBluRay\b",
         r"\bHDRip\b",
+        r"\bDVDRip\b",
+        
         r"\bHindi\b",
         r"\bEnglish\b",
+        r"\bTamil\b",
+        r"\bTelugu\b",
+        r"\bMalayalam\b",
+        
         r"\bDual Audio\b",
-        r"\b\d{4}\b",
+        r"\bORG\b",
+        r"\bDubbed\b",
+        r"\bESub\b",
+        
+        r"\b10bit\b",
+        r"\bHEVC\b",
+        r"\bAAC\b",
+        r"\bDDP\b",
+        
+        r"\bx264\b",
+        r"\bx265\b",
+        
+        r"\b2CH\b",
+        r"\b5\.1\b",
+        
+        r"\bPSA\b",
+        
+        r"\bmkv\b",
+        r"\bmp4\b",
+        r"\bavi\b",
+        
+        r"JOIN\s+@\w+",
     ]
 
     for pattern in patterns:
@@ -64,23 +98,20 @@ def extract_title(text):
             title,
             flags=re.I,
         )
-
-    title = title.replace(".", " ")
-
+        
     title = re.sub(
-        r"\b(x264|x265|AAC|HEVC)\b",
+        r"\b(19|20)\d{2}\b",
         "",
         title,
-        flags=re.I,
     )
+    
+    print("EXTRACTED TITLE:", title.strip())
 
-    title = re.sub(
-        r"\s+",
-        " ",
-        title,
-    )
-
-    return title.strip()
+    title = title.strip()
+    
+    print(f"EXTRACTED TITLE: {title}")
+    
+    return title
 
 
 def extract_season(text):
@@ -148,3 +179,4 @@ def extract_language(text):
         return "English"
 
     return ""
+
