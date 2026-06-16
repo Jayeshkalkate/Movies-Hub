@@ -19,15 +19,6 @@ class CustomUserChangeForm(UserChangeForm):
         model = CustomUser
         fields = ("username", "email")
 
-def clean_email(self):
-    email = self.cleaned_data["email"]
-
-    if CustomUser.objects.filter(email=email).exists():
-        raise forms.ValidationError(
-            "Email already exists."
-        )
-
-    return email
 
 class CategoryForm(forms.ModelForm):
     class Meta:

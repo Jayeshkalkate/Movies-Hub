@@ -16,7 +16,6 @@ from .bot import get_application
 from .telegram_utils import (
     check_telegram_membership
 )
-from .services.movie_metadata import search_movie_metadata
 from django.core.mail import send_mail
 from django.contrib import messages
 from django.conf import settings
@@ -178,7 +177,9 @@ def website_download(request, movie_id):
             f"{telegram_file.file_path}"
         )
 
-        logger.info("Preparing Telegram download")
+        logger.warning(
+            f"Download URL: {download_url}"
+        )
 
         response = requests.get(
             download_url,
@@ -945,45 +946,7 @@ def upload_movie(request):
                 return redirect("upload_movie")
 
             movie = form.save(commit=False)
-            
-            metadata = search_movie_metadata(
-                movie.title,
-                movie.year,
-            )
-            
-            if metadata:
-                
-                movie.tmdb_id = metadata.get("tmdb_id")
-                
-                if not movie.poster:
-                    movie.poster = metadata.get("poster")
-                    
-                if not movie.overview:
-                    movie.overview = metadata.get("overview")
-                    
-                if not movie.rating:
-                    movie.rating = metadata.get("rating")
-                    
-                if not movie.duration:
-                    movie.duration = (
-                        f"{metadata.get('duration')} min"
-                        if metadata.get("duration")
-                        else ""
-                    )
-                    
-                if not movie.tags:
-                    movie.tags = metadata.get("tags", "")
-                    
-                if not movie.season_count:
-                    movie.season_count = metadata.get(
-                        "season_count"
-                    )
-                    
-                if not movie.episode_count:
-                    movie.episode_count = metadata.get(
-                        "episode_count"
-                    )
-        
+
             movie.channel = channel
             movie.telegram_message_id = sent_message.message_id
 

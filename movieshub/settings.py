@@ -123,8 +123,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.parse(
-            # DATABASE_URL,
-            os.getenv('DATABASE_URL'),
+            DATABASE_URL,
             conn_max_age=600,
             ssl_require=True,
         )
@@ -263,19 +262,38 @@ CACHES = {
 # --------------------------------------------------
 # LOGGING
 # --------------------------------------------------
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-}
+
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "handlers": {
+#         "console": {
+#             "class": "logging.StreamHandler",
+#         },
+#     },
+#     "root": {
+#         "handlers": ["console"],
+#         "level": "INFO",
+#         },
+#     "loggers": {
+#         "django.security": {
+#             "handlers": ["console"],
+#             "level": "WARNING",
+#             "propagate": False,
+#             },
+#         "telegram": {
+#             "handlers": ["console"],
+#             "level": "INFO",
+#             "propagate": False,
+#             },
+#         "coremovieshub": {
+#             "handlers": ["console"],
+#             "level": "INFO",
+#             "propagate": False,
+#             },
+#         },
+#     },
+
 # --------------------------------------------------
 # TELEGRAM BOT
 # --------------------------------------------------
@@ -356,17 +374,17 @@ if not DEBUG and not MAIN_CHANNEL_ID:
 # Security Improvements
 # --------------------------------------------------
 
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = not DEBUG
 
-SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = not DEBUG
 
-CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = not DEBUG
 
-SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 
-SECURE_HSTS_PRELOAD = True
+SECURE_HSTS_PRELOAD = not DEBUG
 
 X_FRAME_OPTIONS = "DENY"
 

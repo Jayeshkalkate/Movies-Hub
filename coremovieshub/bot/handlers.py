@@ -727,7 +727,7 @@ def save_channel_movie(post, channel, media):
             telegram_message_id=post.message_id,
             channel=channel,
             defaults={
-                "title": title[:TelegramMovie._meta.get_field("title").max_length],
+                "title": title[:255],
                 "content_type": "movie",
                 "category": channel.category,
                 "release_date": release_date,

@@ -13,7 +13,6 @@ movie = TelegramMovie.objects.create(
     channel=channel,
     telegram_message_id=999998,
     telegram_file_id="test",
-    # telegram_message_id=message_id,
     telegram_message_link="https://t.me/c/3842092188/999998",
     quality="720p",
     description="Test",

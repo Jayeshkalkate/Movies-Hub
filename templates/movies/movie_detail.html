@@ -7,18 +7,10 @@
         class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top"
         style="top: 20px"
       >
-        {% comment %} {% if movie.poster %}
+        {% if movie.poster %}
         <img
           src="{{ movie.poster.url }}"
           alt="{{ movie.title }}"
-          class="card-img-top img-fluid"
-          style="object-fit: cover"
-        />
-        {% else %} {% endcomment %}
-        {% if movie.poster %}
-        <img
-          src="{{ movie.poster }}"
-          alt="Poster {{ movie.title }}"
           class="card-img-top img-fluid"
           style="object-fit: cover"
         />

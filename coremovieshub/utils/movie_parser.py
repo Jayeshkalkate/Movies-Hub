@@ -1,7 +1,4 @@
 import re
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def clean_caption(text):
@@ -49,67 +46,49 @@ def extract_title(text):
     title = title.replace(".", " ")
     title = title.replace("-", " ")
     title = title.replace("_", " ")
-
+    
     patterns = [
-        # Resolutions
         r"\b2160p\b",
         r"\b1440p\b",
         r"\b1080p\b",
         r"\b720p\b",
         r"\b480p\b",
-
-        # Source / Release type
+        
         r"\bWEB[- ]DL\b",
         r"\bWEBRip\b",
         r"\bBluRay\b",
         r"\bHDRip\b",
         r"\bDVDRip\b",
-
-        # Languages
+        
         r"\bHindi\b",
         r"\bEnglish\b",
         r"\bTamil\b",
         r"\bTelugu\b",
         r"\bMalayalam\b",
-
-        # Audio / subtitle flags
+        
         r"\bDual Audio\b",
         r"\bORG\b",
         r"\bDubbed\b",
         r"\bESub\b",
-
-        # Codec / bit depth
+        
         r"\b10bit\b",
         r"\bHEVC\b",
         r"\bAAC\b",
         r"\bDDP\b",
-
+        
         r"\bx264\b",
         r"\bx265\b",
-
-        # Audio channels
+        
         r"\b2CH\b",
         r"\b5\.1\b",
-
-        # Group tags
+        
         r"\bPSA\b",
-
-        # File extensions
+        
         r"\bmkv\b",
         r"\bmp4\b",
         r"\bavi\b",
-
-        # Telegram spam
+        
         r"JOIN\s+@\w+",
-
-        # --- NEW PATTERNS for seasons, episodes, series, and streamers ---
-        r"\bSeason\s*\d+\b",
-        r"\bS\d+\b",               # S01, S2, etc.
-        r"\bE\d+\b",               # E01, E5, etc.
-        r"\bEpisode\s*\d+\b",
-        r"\bComplete\b",
-        r"\bNF\b",                 # Netflix
-        r"\bAMZN\b",               # Amazon
     ]
 
     for pattern in patterns:
@@ -119,18 +98,20 @@ def extract_title(text):
             title,
             flags=re.I,
         )
-
-    # Remove years (1900-2099)
+        
     title = re.sub(
         r"\b(19|20)\d{2}\b",
         "",
         title,
     )
+    
+    print("EXTRACTED TITLE:", title.strip())
 
-    # Log the cleaned title (instead of print)
-    cleaned = title.strip()
-    logger.info(f"Extracted title: '{cleaned}'")
-    return cleaned
+    title = title.strip()
+    
+    print(f"EXTRACTED TITLE: {title}")
+    
+    return title
 
 
 def extract_season(text):
@@ -198,3 +179,4 @@ def extract_language(text):
         return "English"
 
     return ""
+
