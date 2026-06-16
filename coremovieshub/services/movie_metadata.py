@@ -9,13 +9,20 @@ def search_movie_metadata(title, year=None):
 
     title = title.strip()
 
-    movie = (
-        TMDBMovie.objects
-        .filter(title__iexact=title)
-        .first()
+    queryset = TMDBMovie.objects.filter(
+        title__iexact=title
     )
     
-    print(f"TMDB Exact Search: {title} -> {movie}")
+    if year:
+        queryset = queryset.filter(
+            release_date__year=year
+        )
+        
+    movie = queryset.first()
+        
+    print(
+        f"TMDB Exact Search: {title} ({year}) -> {movie}"
+    )
 
     if not movie:
         queryset = TMDBMovie.objects.filter(
@@ -26,10 +33,14 @@ def search_movie_metadata(title, year=None):
             queryset = queryset.filter(
                 release_date__year=year
             )
-            
-            movie = queryset.order_by("-release_date").first()
         
-        print(f"TMDB Contains Search: {title} -> {movie}")
+        movie = queryset.order_by(
+            "-release_date"
+        ).first()
+        
+        print(
+            f"TMDB Contains Search: {title} ({year}) -> {movie}"
+        )
 
     if not movie:
         return None
