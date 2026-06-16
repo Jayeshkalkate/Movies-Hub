@@ -689,7 +689,7 @@ def save_channel_movie(post, channel, media):
 
         poster = None
         banner = None
-        overview = clean_caption(caption)[:1000]
+        overview = clean_caption(caption)
         rating = None
         release_date = None
         

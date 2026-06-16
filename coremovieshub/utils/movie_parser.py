@@ -1,5 +1,6 @@
 import re
-
+import logging
+logger = logging.getLogger(__name__)
 
 def clean_caption(text):
     """
@@ -89,6 +90,22 @@ def extract_title(text):
         r"\bavi\b",
         
         r"JOIN\s+@\w+",
+        
+        r"\bSeason\s*\d+\b",
+        r"\bS\d+\b",
+        
+        r"\bEpisode\s*\d+\b",
+        r"\bE\d+\b",
+        
+        r"\bPart\s*\d+\b",
+        
+        r"\bComplete\b",
+        
+        r"\bSeries\b",
+        
+        r"\bMulti Audio\b",
+        
+        r"\bMultiAudio\b",
     ]
 
     for pattern in patterns:
@@ -105,11 +122,11 @@ def extract_title(text):
         title,
     )
     
-    print("EXTRACTED TITLE:", title.strip())
+    logger.info("EXTRACTED TITLE:", title.strip())
 
     title = title.strip()
     
-    print(f"EXTRACTED TITLE: {title}")
+    logger.info(f"EXTRACTED TITLE: {title}")
     
     return title
 

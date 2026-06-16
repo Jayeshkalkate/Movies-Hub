@@ -1,4 +1,5 @@
 from coremovieshub.models import TMDBMovie
+from django.utils.text import slugify
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 
@@ -9,8 +10,10 @@ def search_movie_metadata(title, year=None):
 
     title = title.strip()
 
+    normalized_title = slugify(title)
+    
     queryset = TMDBMovie.objects.filter(
-        title__iexact=title
+        title_normalized=normalized_title
     )
     
     if year:
@@ -26,7 +29,7 @@ def search_movie_metadata(title, year=None):
 
     if not movie:
         queryset = TMDBMovie.objects.filter(
-            title__icontains=title
+            title_normalized__startswith=normalized_title
         )
         
         if year:

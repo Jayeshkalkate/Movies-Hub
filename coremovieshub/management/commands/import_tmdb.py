@@ -147,12 +147,7 @@ class Command(BaseCommand):
                         title_normalized = (
                             slugify(title)
                         )
-
-                        if tmdb_id:
-                            title_normalized = (
-                                f"{title_normalized}-{tmdb_id}"
-                            )
-
+                        
                         movies.append(
                             TMDBMovie(
                                 tmdb_id=tmdb_id,
