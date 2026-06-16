@@ -344,7 +344,13 @@ class TelegramMovie(models.Model):
         blank=True,
         help_text="Comma separated tags",
     )
-
+    
+    tmdb_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+        
     # Statistics
     views = models.PositiveIntegerField(default=0)
 

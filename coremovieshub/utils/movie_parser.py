@@ -35,8 +35,22 @@ METADATA_PATTERNS = [
     # Miscellaneous
     r"\bComplete\b", r"\bSeries\b",
     r"\bMulti Audio\b", r"\bMultiAudio\b",
-    # Year (four digits, 1900–2099) – moved here from separate step
+    # Year (four digits, 1900–2099)
     r"\b(?:19|20)\d{2}\b",
+
+    # ---------- ADDED PATTERNS TO FIX SPIDER-MAN PARSING ----------
+    r"\bDD\s*\d+\s*\d+\b",          # "DD 5 1", "DD5.1", etc.
+    r"\bAAC\s*\d+\s*\d+\b",         # "AAC 5.1"
+    r"\bNF\b",                      # Netflix
+    r"\bHE\b",                      # maybe "HE" as in HEVC? but we keep it
+    r"\bImmortal\b",                # group name
+    r"\bGodfather\b",               # group name (some releases use this)
+    r"\bYTS\b",                     # YIFY group
+    r"\bAM\b",                      # group or audio codec?
+    r"\bORG\b",                     # already present, but re-added for clarity
+    r"\bor\b",                      # standalone "or" (common spam)
+    r"\bDual Audio\b",              # already present
+    r"\bESubs?\b",                  # matches "ESub" or "ESubs"
 ]
 
 # Compile once, reuse everywhere
@@ -136,9 +150,16 @@ def extract_language(text):
         return "English"
     return ""
 
-# -------------------------------------------------------------------
-# (Optional) If you need to check for any metadata presence
-# -------------------------------------------------------------------
+
+def extract_year(text):
+    match = re.search(
+        r"(19\d{2}|20\d{2})",
+        text,
+    )
+    return int(match.group()) if match else None
+
+
 def has_metadata(text):
     """Return True if the text contains any of the metadata patterns."""
     return bool(_METADATA_RE.search(str(text)))
+

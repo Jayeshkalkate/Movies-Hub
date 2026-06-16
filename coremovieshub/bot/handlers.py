@@ -29,6 +29,7 @@ from coremovieshub.utils.movie_parser import (
     extract_quality,
     extract_language,
     extract_season,
+    extract_year,          # <--- ADDED
 )
 
 REQUIRED_CHANNELS = [
@@ -657,18 +658,9 @@ def save_channel_movie(post, channel, media):
     try:
         # Fetch metadata from TMDB
         logger.info("SEARCHING TMDB FOR: %s", title)
-        import re
         
-        year_match = re.search(
-            r"\b(19\d{2}|20\d{2})\b",
-            caption
-        )
-        
-        year = (
-            int(year_match.group())
-            if year_match
-            else None
-        )
+        # Use extract_year instead of manual regex
+        year = extract_year(caption)  # <--- REPLACED manual regex
         
         logger.info("EXTRACTED YEAR: %s", year)
         
@@ -692,6 +684,18 @@ def save_channel_movie(post, channel, media):
         overview = clean_caption(caption)
         rating = None
         release_date = None
+        description = clean_caption(caption)
+        overview = (
+            metadata.get("overview")
+            if metadata
+            else ""
+        )
+        poster = None
+        banner = None
+        rating = None
+        release_date = None
+        tmdb_id = None
+
         
         if metadata:
             
@@ -704,7 +708,7 @@ def save_channel_movie(post, channel, media):
                 metadata.get("banner")
                 or banner
             )
-            
+
             overview = (
                 metadata.get("overview")
                 or overview
@@ -720,9 +724,14 @@ def save_channel_movie(post, channel, media):
                 or release_date
             )
             
+            tmdb_id = (
+                metadata.get("tmdb_id")
+                or tmdb_id
+            )
+            
         if not banner:
             banner = poster
-        
+            
         movie, created = TelegramMovie.objects.get_or_create(
             telegram_message_id=post.message_id,
             channel=channel,
@@ -740,6 +749,7 @@ def save_channel_movie(post, channel, media):
                 "banner": banner,
                 "overview": overview,
                 "rating": rating,
+                "tmdb_id": tmdb_id,
                 "file_size": (
                     f"{round(media.file_size / (1024 ** 3), 2)} GB"
                     if getattr(media, "file_size", None)
@@ -762,6 +772,7 @@ def save_channel_movie(post, channel, media):
                 ),
             },
         )
+
                             
         if not created:
             logger.info("MOVIE ALREADY EXISTS")

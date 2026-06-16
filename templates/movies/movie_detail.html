@@ -1,25 +1,35 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
 <div class="container mt-4">
+  
+  <!-- Banner (if banner_url exists) -->
+  {% if movie.banner %}
+  <div class="mb-4 rounded-4 overflow-hidden" 
+       style="height: 300px; background-image: url('{{ movie.banner }}'); 
+              background-size: cover; background-position: center;">
+    <div class="d-flex align-items-end h-100" 
+         style="background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);">
+      <div class="p-4 text-white">
+        <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row">
     <div class="col-lg-4 mb-4">
       <!-- Movie Poster -->
-      <div
-        class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top"
-        style="top: 20px"
-      >
+      <div class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top" style="top: 20px">
         {% if movie.poster %}
-        <img
-          src="{{ movie.poster.url }}"
-          alt="{{ movie.title }}"
-          class="card-img-top img-fluid"
-          style="object-fit: cover"
-        />
+          <img src="{{ movie.poster }}" 
+               alt="{{ movie.title }}" 
+               class="card-img-top img-fluid" 
+               style="object-fit: cover"
+               onerror="this.onerror=null; this.src='https://via.placeholder.com/500x750?text=No+Poster';">
         {% else %}
-        <img
-          src="https://via.placeholder.com/500x750?text=No+Poster"
-          alt="No poster"
-          class="card-img-top"
-        />
+          <img src="https://via.placeholder.com/500x750?text=No+Poster" 
+               alt="No poster" 
+               class="card-img-top">
         {% endif %}
         <div class="card-body bg-light text-center">
           <small class="text-muted">Poster</small>
@@ -28,37 +38,48 @@
     </div>
 
     <div class="col-lg-8">
-      <!-- Title & basic info -->
+      <!-- Title & basic info (if no banner, show title here) -->
+      {% if not movie.banner %}
       <div class="mb-4">
         <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
-        <div class="d-flex flex-wrap gap-2 mb-3">
-          {% if movie.category %}
-          <span class="badge bg-info text-dark fs-6 px-3 py-2">
-            <i class="bi bi-tag"></i> {{ movie.category.name }}
-          </span>
-          {% endif %} {% if movie.year %}
-          <span class="badge bg-secondary fs-6 px-3 py-2">
-            <i class="bi bi-calendar"></i> {{ movie.year }}
-          </span>
-          {% endif %} {% if movie.quality %}
-          <span class="badge bg-success fs-6 px-3 py-2">
-            <i class="bi bi-film"></i> {{ movie.quality }}
-          </span>
-          {% endif %}
-          <span class="badge bg-primary fs-6 px-3 py-2">
-            <i class="bi bi-eye"></i> {{ movie.views }} views
-          </span>
-        </div>
+      </div>
+      {% endif %}
+
+      <!-- Badges -->
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        {% if movie.category %}
+        <span class="badge bg-info text-dark fs-6 px-3 py-2">
+          <i class="bi bi-tag"></i> {{ movie.category.name }}
+        </span>
+        {% endif %}
+        {% if movie.year %}
+        <span class="badge bg-secondary fs-6 px-3 py-2">
+          <i class="bi bi-calendar"></i> {{ movie.year }}
+        </span>
+        {% endif %}
+        {% if movie.quality %}
+        <span class="badge bg-success fs-6 px-3 py-2">
+          <i class="bi bi-film"></i> {{ movie.quality }}
+        </span>
+        {% endif %}
+        {% if movie.rating %}
+        <span class="badge bg-warning text-dark fs-6 px-3 py-2">
+          <i class="bi bi-star-fill"></i> {{ movie.rating }}/10
+        </span>
+        {% endif %}
+        <span class="badge bg-primary fs-6 px-3 py-2">
+          <i class="bi bi-eye"></i> {{ movie.views }} views
+        </span>
       </div>
 
-      <!-- Description (if available) -->
-      {% if movie.description %}
+      <!-- Overview (TMDB) or Description -->
+      {% if movie.overview or movie.description %}
       <div class="card shadow-sm border-0 rounded-4 mb-4">
         <div class="card-header bg-white py-3">
           <h5 class="mb-0"><i class="bi bi-info-circle"></i> Synopsis</h5>
         </div>
         <div class="card-body">
-          <p class="mb-0">{{ movie.description|linebreaks }}</p>
+          <p class="mb-0">{{ movie.overview|default:movie.description|linebreaks }}</p>
         </div>
       </div>
       {% endif %}
@@ -96,7 +117,14 @@
                 <th>Release Date</th>
                 <td>{{ movie.release_date }}</td>
               </tr>
-              {% endif %} {% if movie.duration %}
+              {% endif %}
+              {% if movie.rating %}
+              <tr>
+                <th>TMDB Rating</th>
+                <td>⭐ {{ movie.rating }}/10</td>
+              </tr>
+              {% endif %}
+              {% if movie.duration %}
               <tr>
                 <th>Duration</th>
                 <td>{{ movie.duration }} min</td>
@@ -111,68 +139,39 @@
       {% if is_verified %}
       <div class="card shadow-sm border-0 rounded-4 bg-light">
         <div class="card-body">
-          <div
-            class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start"
-          >
-            <a
-              href="{% url 'watch_movie' movie.id %}"
-              class="btn btn-success btn-lg"
-            >
+          <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
+            <a href="{% url 'watch_movie' movie.id %}" class="btn btn-success btn-lg">
               <i class="bi bi-play-circle"></i> Watch Movie
             </a>
             {% if movie.can_download_from_website %}
-
-            <a
-              href="{% url 'website_download' movie.id %}"
-              class="btn btn-success btn-lg"
-            >
-              <i class="bi bi-download"></i>
-              Download on Website
+            <a href="{% url 'website_download' movie.id %}" class="btn btn-success btn-lg">
+              <i class="bi bi-download"></i> Download on Website
             </a>
-
             {% else %}
-
             <div class="alert alert-info mb-0">
               <i class="bi bi-info-circle"></i>
-              This movie is larger than 2 GB and cannot be downloaded directly
-              from the website.
+              This movie is larger than 2 GB and cannot be downloaded directly from the website.
             </div>
-
             {% endif %}
-
-            <a
-              href="{% url 'download_movie' movie.id %}"
-              class="btn btn-warning btn-lg"
-            >
-              <i class="bi bi-telegram"></i>
-              Download On Telegram
+            <a href="{% url 'download_movie' movie.id %}" class="btn btn-warning btn-lg">
+              <i class="bi bi-telegram"></i> Download On Telegram
             </a>
-            <a
-              href="{% url 'add_to_watchlist' movie.id %}"
-              class="btn btn-info btn-lg"
-            >
+            <a href="{% url 'add_to_watchlist' movie.id %}" class="btn btn-info btn-lg">
               <i class="bi bi-bookmark-plus"></i> Add to Watchlist
             </a>
           </div>
         </div>
       </div>
       {% else %}
-      <div
-        class="alert alert-warning d-flex align-items-center shadow-sm rounded-4"
-        role="alert"
-      >
+      <div class="alert alert-warning d-flex align-items-center shadow-sm rounded-4" role="alert">
         <i class="bi bi-exclamation-triangle-fill fs-2 me-3"></i>
         <div>
           <strong>Verification Required</strong><br />
-          Please verify your Telegram account and join the required channels to
-          watch or download this content.
+          Please verify your Telegram account and join the required channels to watch or download this content.
         </div>
       </div>
       <div class="text-center mt-3">
-        <a
-          href="{% url 'verify_telegram' %}"
-          class="btn btn-warning btn-lg px-5"
-        >
+        <a href="{% url 'verify_telegram' %}" class="btn btn-warning btn-lg px-5">
           <i class="bi bi-telegram"></i> Verify Telegram Account
         </a>
       </div>
