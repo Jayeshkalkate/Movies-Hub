@@ -157,6 +157,26 @@ class TMDBMovie(models.Model):
         db_index=True,
     )
     
+    runtime = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    
+    status = models.CharField(
+        max_length=50,
+        blank=True,
+    )
+    
+    number_of_seasons = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    
+    number_of_episodes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    
     backdrop_path = models.TextField(
         blank=True,
     )
@@ -293,6 +313,22 @@ class TelegramMovie(models.Model):
     banner = models.URLField(
         blank=True,
         null=True,
+    )
+
+    tmdb_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    season_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+    
+    episode_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
     )
 
     overview = models.TextField(

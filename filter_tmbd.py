@@ -4,7 +4,7 @@ import pandas as pd
 print("Reading CSV...")
 
 df = pd.read_csv(
-    "data/TMDB_movie_dataset.csv",
+    "data/Data_for_repository.csv",
     low_memory=False,
 )
 
@@ -30,5 +30,5 @@ filtered.to_csv(
 
 print("Done!")
 print(
-    "Saved to data/TMDB_movies_2000_2026.csv"
+    "Saved to data/p1.csv"
 )

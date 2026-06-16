@@ -23,7 +23,7 @@ class Command(BaseCommand):
         csv_path = (
             settings.BASE_DIR
             / "data"
-            / "TMDB_movies_final.csv"
+            / "MoviesHub_metadata.csv"
         )
 
         batch_size = options["batch_size"]
@@ -86,7 +86,7 @@ class Command(BaseCommand):
 
                         title = str(title).strip()
 
-                        tmdb_id = getattr(row, "id", None)
+                        tmdb_id = getattr(row, "tmdb_id", None)
 
                         overview = getattr(
                             row,
@@ -148,10 +148,15 @@ class Command(BaseCommand):
                             slugify(title)
                         )
 
-                        if tmdb_id:
-                            title_normalized = (
-                                f"{title_normalized}-{tmdb_id}"
-                            )
+                        release_year = (
+                            release_date.year
+                            if release_date
+                            else 0
+                        )
+                        
+                        title_normalized = (
+                            f"{slugify(title)}-{release_year}"
+                        )
 
                         movies.append(
                             TMDBMovie(

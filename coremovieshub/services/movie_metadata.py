@@ -46,21 +46,33 @@ def search_movie_metadata(title, year=None):
         return None
 
     return {
+        "tmdb_id": movie.tmdb_id,
+        
         "poster": (
             f"{TMDB_IMAGE_BASE}/w500{movie.poster_path}"
             if movie.poster_path
             else None
         ),
-
+        
         "banner": (
             f"{TMDB_IMAGE_BASE}/original{movie.backdrop_path}"
             if movie.backdrop_path
             else None
         ),
-
-        "overview": movie.overview or "",
-
+        
+        "overview": movie.overview,
+        
         "rating": movie.vote_average,
-
+        
         "release_date": movie.release_date,
-    }
+        
+        "duration": movie.runtime,
+        
+        "tags": movie.genres,
+        
+        "season_count": movie.number_of_seasons,
+        
+        "episode_count": movie.number_of_episodes,
+        
+        "status": movie.status,
+}
