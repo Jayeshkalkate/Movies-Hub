@@ -1,199 +1,144 @@
 import re
 import logging
+
 logger = logging.getLogger(__name__)
+
+# -------------------------------------------------------------------
+# 1. COMBINED PATTERN – all metadata in one regex
+#    (case‑insensitive, compiled once for performance)
+# -------------------------------------------------------------------
+METADATA_PATTERNS = [
+    # Resolution
+    r"\b2160p\b", r"\b1440p\b", r"\b1080p\b", r"\b720p\b", r"\b480p\b",
+    # Source
+    r"\bWEB[- ]DL\b", r"\bWEBRip\b", r"\bBluRay\b", r"\bHDRip\b", r"\bDVDRip\b",
+    # Languages
+    r"\bHindi\b", r"\bEnglish\b", r"\bTamil\b", r"\bTelugu\b", r"\bMalayalam\b",
+    # Audio / Subtitle flags
+    r"\bDual Audio\b", r"\bORG\b", r"\bDubbed\b", r"\bESub\b",
+    # Codec & bit depth
+    r"\b10bit\b", r"\bHEVC\b", r"\bAAC\b", r"\bDDP\b",
+    # Video codec
+    r"\bx264\b", r"\bx265\b",
+    # Audio channels
+    r"\b2CH\b", r"\b5\.1\b",
+    # Release group
+    r"\bPSA\b",
+    # File extensions
+    r"\bmkv\b", r"\bmp4\b", r"\bavi\b",
+    # Spam / promotions (intentionally without word boundaries)
+    r"JOIN\s+@\w+",
+    # Season / Episode / Part
+    r"\bSeason\s*\d+\b", r"\bS\d+\b",
+    r"\bEpisode\s*\d+\b", r"\bE\d+\b",
+    r"\bPart\s*\d+\b",
+    # Miscellaneous
+    r"\bComplete\b", r"\bSeries\b",
+    r"\bMulti Audio\b", r"\bMultiAudio\b",
+    # Year (four digits, 1900–2099) – moved here from separate step
+    r"\b(?:19|20)\d{2}\b",
+]
+
+# Compile once, reuse everywhere
+_METADATA_RE = re.compile(
+    "|".join(f"(?:{p})" for p in METADATA_PATTERNS),
+    re.IGNORECASE,
+)
+
+# -------------------------------------------------------------------
+# 2. CLEANING & EXTRACTION FUNCTIONS
+# -------------------------------------------------------------------
 
 def clean_caption(text):
     """
-    Remove Telegram promotions, usernames,
-    and invite links from captions.
+    Remove Telegram promotions, usernames, and invite links from captions.
     """
     if not text:
         return ""
 
     text = str(text)
 
-    text = re.sub(
-        r"(?i)\bjoin\b.*",
-        "",
-        text,
-    )
-
-    text = re.sub(
-        r"@\w+",
-        "",
-        text,
-    )
-
-    text = re.sub(
-        r"t\.me/\S+",
-        "",
-        text,
-    )
+    # Remove lines starting with "join" (case‑insensitive)
+    text = re.sub(r"(?i)\bjoin\b.*", "", text)
+    # Remove @usernames
+    text = re.sub(r"@\w+", "", text)
+    # Remove t.me/ links
+    text = re.sub(r"t\.me/\S+", "", text)
 
     return text.strip()
 
 
 def extract_title(text):
     """
-    Extract a clean movie title
-    from Telegram captions.
+    Extract a clean movie title from Telegram captions.
+    Uses a single regex to strip all metadata at once.
     """
-
     if not text:
         return ""
 
+    # Take the first line and clean separators
     title = str(text).split("\n")[0]
+    title = title.replace(".", " ").replace("-", " ").replace("_", " ")
 
-    title = title.replace(".", " ")
-    title = title.replace("-", " ")
-    title = title.replace("_", " ")
-    
-    patterns = [
-        r"\b2160p\b",
-        r"\b1440p\b",
-        r"\b1080p\b",
-        r"\b720p\b",
-        r"\b480p\b",
-        
-        r"\bWEB[- ]DL\b",
-        r"\bWEBRip\b",
-        r"\bBluRay\b",
-        r"\bHDRip\b",
-        r"\bDVDRip\b",
-        
-        r"\bHindi\b",
-        r"\bEnglish\b",
-        r"\bTamil\b",
-        r"\bTelugu\b",
-        r"\bMalayalam\b",
-        
-        r"\bDual Audio\b",
-        r"\bORG\b",
-        r"\bDubbed\b",
-        r"\bESub\b",
-        
-        r"\b10bit\b",
-        r"\bHEVC\b",
-        r"\bAAC\b",
-        r"\bDDP\b",
-        
-        r"\bx264\b",
-        r"\bx265\b",
-        
-        r"\b2CH\b",
-        r"\b5\.1\b",
-        
-        r"\bPSA\b",
-        
-        r"\bmkv\b",
-        r"\bmp4\b",
-        r"\bavi\b",
-        
-        r"JOIN\s+@\w+",
-        
-        r"\bSeason\s*\d+\b",
-        r"\bS\d+\b",
-        
-        r"\bEpisode\s*\d+\b",
-        r"\bE\d+\b",
-        
-        r"\bPart\s*\d+\b",
-        
-        r"\bComplete\b",
-        
-        r"\bSeries\b",
-        
-        r"\bMulti Audio\b",
-        
-        r"\bMultiAudio\b",
-    ]
+    # Remove all metadata patterns in one pass
+    title = _METADATA_RE.sub("", title)
 
-    for pattern in patterns:
-        title = re.sub(
-            pattern,
-            "",
-            title,
-            flags=re.I,
-        )
-        
-    title = re.sub(
-        r"\b(19|20)\d{2}\b",
-        "",
-        title,
-    )
-    
-    logger.info("EXTRACTED TITLE:", title.strip())
+    # Collapse multiple spaces and strip
+    title = re.sub(r"\s+", " ", title).strip()
 
-    title = title.strip()
-    
     logger.info(f"EXTRACTED TITLE: {title}")
-    
     return title
 
 
 def extract_season(text):
     """
     Extract season number from text.
-    Examples:
-    S01 -> 1
-    Season 2 -> 2
+    Examples: S01 → 1, Season 2 → 2
     """
     if not text:
         return None
 
-    text = str(text)
-
-    match = re.search(
-        r"(?:S|Season\s*)(\d+)",
-        text,
-        re.I,
-    )
-
+    match = re.search(r"(?:S|Season\s*)(\d+)", str(text), re.I)
     if match:
         return int(match.group(1))
-
     return None
 
 
 def extract_quality(text):
     """
-    Extract video quality.
+    Extract video quality (e.g., '1080p').
+    Returns 'Unknown' if not found.
     """
     if not text:
         return "Unknown"
 
     text = str(text).lower()
-
-    for quality in [
-        "2160p",
-        "1440p",
-        "1080p",
-        "720p",
-        "480p",
-    ]:
-        if quality in text:
-            return quality
-
+    for q in ("2160p", "1440p", "1080p", "720p", "480p"):
+        if q in text:
+            return q
     return "Unknown"
 
 
 def extract_language(text):
     """
     Extract audio language information.
+    Returns 'Dual Audio', 'Hindi', 'English', or empty string.
     """
     if not text:
         return ""
 
     lower = str(text).lower()
-
     if "dual audio" in lower:
         return "Dual Audio"
-
     if "hindi" in lower:
         return "Hindi"
-
     if "english" in lower:
         return "English"
-
     return ""
 
+# -------------------------------------------------------------------
+# (Optional) If you need to check for any metadata presence
+# -------------------------------------------------------------------
+def has_metadata(text):
+    """Return True if the text contains any of the metadata patterns."""
+    return bool(_METADATA_RE.search(str(text)))
