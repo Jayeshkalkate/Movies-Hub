@@ -178,9 +178,7 @@ def website_download(request, movie_id):
             f"{telegram_file.file_path}"
         )
 
-        logger.warning(
-            f"Download URL: {download_url}"
-        )
+        logger.info("Preparing Telegram download")
 
         response = requests.get(
             download_url,
