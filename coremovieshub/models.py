@@ -271,6 +271,7 @@ class TelegramMovie(models.Model):
         blank=True,
         null=True,
     )
+    telegram_message_id = models.BigIntegerField(unique=True)
     telegram_file_id = models.TextField(
         blank=True,
         null=True,
