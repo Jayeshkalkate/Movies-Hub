@@ -1,5 +1,13 @@
-{% extends 'base.html' %} {% block title %}Add Category | MoviesHub{% endblock
-%} {% block content %}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Add Category | MoviesHub{% endblock %}
+
+{% block extra_meta %}
+<meta name="description" content="Create a new movie category on MoviesHub to organize your content effectively.">
+{% endblock %}
+
+{% block content %}
 <div class="container mt-5">
   <!-- Add Category Form -->
   <div class="row justify-content-center mb-5">
@@ -7,55 +15,49 @@
       <div class="card shadow-sm border-0 rounded-4">
         <div class="card-header bg-white py-3 border-bottom-0">
           <h3 class="mb-0 fw-bold text-primary">
-            <i class="bi bi-tag"></i> Add New Category
+            <i class="bi bi-tag" aria-hidden="true"></i> Add New Category
           </h3>
-          <p class="text-muted mt-2">
+          <p class="text-muted mt-2 mb-0">
             Create a category to organize your movies
           </p>
         </div>
         <div class="card-body p-4">
           <form method="post" novalidate>
-            {% csrf_token %} {% if form.non_field_errors %}
-            <div
-              class="alert alert-danger d-flex align-items-center"
-              role="alert"
-            >
-              <i class="bi bi-exclamation-triangle-fill me-2"></i>
-              <div>{{ form.non_field_errors }}</div>
-            </div>
+            {% csrf_token %}
+
+            {# Non-field errors #}
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+                <div>{{ form.non_field_errors }}</div>
+              </div>
             {% endif %}
 
+            {# Category name field #}
             <div class="mb-4">
-              <label
-                for="{{ form.name.id_for_label }}"
-                class="form-label fw-semibold"
-              >
+              <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">
                 Category Name <span class="text-danger">*</span>
               </label>
-              <div class="input-group">
-                <span class="input-group-text bg-white"
-                  ><i class="bi bi-pencil-fill"></i
-                ></span>
+              <div class="input-group has-validation">
+                <span class="input-group-text bg-white border-end-0">
+                  <i class="bi bi-pencil-fill" aria-hidden="true"></i>
+                </span>
                 {{ form.name }}
               </div>
               {% if form.name.help_text %}
-              <div class="form-text text-muted small">
-                {{ form.name.help_text }}
-              </div>
-              {% endif %} {% for error in form.name.errors %}
-              <div class="invalid-feedback d-block">{{ error }}</div>
+                <div class="form-text text-muted small mt-1">{{ form.name.help_text }}</div>
+              {% endif %}
+              {% for error in form.name.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
               {% endfor %}
             </div>
 
             <div class="d-flex justify-content-between gap-3">
-              <a
-                href="{% url 'movie_management' %}"
-                class="btn btn-outline-secondary px-4"
-              >
-                <i class="bi bi-arrow-left"></i> Cancel
+              <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Cancel
               </a>
               <button type="submit" class="btn btn-primary px-5">
-                <i class="bi bi-plus-circle"></i> Add Category
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Category
               </button>
             </div>
           </form>
@@ -70,38 +72,53 @@
       <div class="card shadow-sm border-0 rounded-4">
         <div class="card-header bg-white py-3">
           <h4 class="mb-0 fw-semibold">
-            <i class="bi bi-grid"></i> Existing Categories
+            <i class="bi bi-grid" aria-hidden="true"></i> Existing Categories
           </h4>
         </div>
         <div class="card-body p-0">
           {% if categories %}
-          <div class="list-group list-group-flush">
-            {% for cat in categories %}
-            <div
-              class="list-group-item d-flex justify-content-between align-items-center py-3"
-            >
-              <div>
-                <i class="bi bi-tag-fill text-primary me-2"></i>
-                <strong>{{ cat.name }}</strong>
-              </div>
-              <span class="badge bg-primary rounded-pill">
-                <i class="bi bi-camera-reels"></i> {{ cat.video_set.count }}
-                movies
-              </span>
+            <div class="list-group list-group-flush">
+              {% for cat in categories %}
+                <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                  <div>
+                    <i class="bi bi-tag-fill text-primary me-2" aria-hidden="true"></i>
+                    <strong>{{ cat.name }}</strong>
+                  </div>
+                  <span class="badge bg-primary rounded-pill">
+                    <i class="bi bi-camera-reels" aria-hidden="true"></i> {{ cat.video_set.count }} movie{{ cat.video_set.count|pluralize }}
+                  </span>
+                </div>
+              {% endfor %}
             </div>
-            {% endfor %}
-          </div>
           {% else %}
-          <div class="text-center py-5">
-            <i class="bi bi-folder-x fs-1 text-muted"></i>
-            <p class="mt-2 mb-0">
-              No categories yet. Add your first category above.
-            </p>
-          </div>
+            <div class="text-center py-5">
+              <i class="bi bi-folder-x fs-1 text-muted" aria-hidden="true"></i>
+              <p class="mt-2 mb-0">No categories yet. Add your first category above.</p>
+            </div>
           {% endif %}
         </div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Automatically add Bootstrap classes to form fields
+  document.addEventListener('DOMContentLoaded', function() {
+    const nameField = document.getElementById('{{ form.name.id_for_label }}');
+    if (nameField) {
+      nameField.classList.add('form-control');
+      // Handle validation states
+      {% if form.name.errors %}
+        nameField.classList.add('is-invalid');
+      {% else %}
+        nameField.classList.add('is-valid');
+      {% endif %}
+      // Set autofocus
+      nameField.focus();
+    }
+  });
+</script>
 {% endblock %}

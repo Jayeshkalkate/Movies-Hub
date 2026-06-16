@@ -657,7 +657,26 @@ def save_channel_movie(post, channel, media):
     try:
         # Fetch metadata from TMDB
         logger.info("SEARCHING TMDB FOR: %s", title)
-        metadata = search_movie_metadata(title)
+        import re
+        
+        year_match = re.search(
+            r"\b(19\d{2}|20\d{2})\b",
+            caption
+        )
+        
+        year = (
+            int(year_match.group())
+            if year_match
+            else None
+        )
+        
+        logger.info("EXTRACTED YEAR: %s", year)
+        
+        metadata = search_movie_metadata(
+            title,
+            year=year
+        )
+
         logger.info("POSTER URL: %s",
                 metadata.get("poster") if metadata else None
         )
@@ -712,6 +731,7 @@ def save_channel_movie(post, channel, media):
                 "content_type": "movie",
                 "category": channel.category,
                 "release_date": release_date,
+                "year": year,
                 "telegram_file_id": media.file_id,
                 "telegram_message_link": message_link,
                 "quality": extract_quality(caption),

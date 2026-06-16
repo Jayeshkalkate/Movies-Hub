@@ -1,5 +1,18 @@
-{% extends 'base.html' %} {% block title %}About MoviesHub{% endblock %} {%
-block content %}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}About MoviesHub - Discover & Share Movies{% endblock %}
+
+{% block extra_meta %}
+<meta name="description" content="MoviesHub is your ultimate destination for discovering, streaming, and enjoying movies. Join our community to review, create watchlists, and stay updated.">
+<meta property="og:title" content="About MoviesHub">
+<meta property="og:description" content="Your ultimate destination for discovering, streaming, and enjoying movies from every genre.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="{% url 'about' %}">
+{% endblock %}
+
+{% block content %}
 <div class="container mt-4">
   <!-- Hero Section -->
   <div class="bg-primary bg-opacity-10 rounded-4 p-5 mb-5 text-center">
@@ -16,7 +29,7 @@ block content %}
   <div class="row align-items-center mb-5">
     <div class="col-md-6 mb-4 mb-md-0">
       <h2 class="fw-bold">
-        <i class="bi bi-rocket-takeoff text-primary"></i> Our Mission
+        <i class="bi bi-rocket-takeoff text-primary" aria-hidden="true"></i> Our Mission
       </h2>
       <p class="mt-3">
         MoviesHub is a community-driven platform built for movie lovers, by
@@ -31,19 +44,19 @@ block content %}
       </p>
     </div>
     <div class="col-md-6 text-center">
-      <i class="bi bi-film" style="font-size: 8rem; color: #dee2e6"></i>
+      <i class="bi bi-film" style="font-size: 8rem; color: #dee2e6" aria-hidden="true"></i>
     </div>
   </div>
 
   <!-- Features Cards -->
   <h2 class="fw-bold text-center mb-4">
-    <i class="bi bi-star-fill text-warning"></i> What We Offer
+    <i class="bi bi-star-fill text-warning" aria-hidden="true"></i> What We Offer
   </h2>
   <div class="row g-4 mb-5">
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-3">
         <div class="card-body">
-          <i class="bi bi-newspaper fs-1 text-primary"></i>
+          <i class="bi bi-newspaper fs-1 text-primary" aria-hidden="true"></i>
           <h5 class="card-title mt-3">Latest Movie News</h5>
           <p class="card-text text-muted">
             Stay informed with updates on new releases, trailers, and cinema
@@ -55,7 +68,7 @@ block content %}
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-3">
         <div class="card-body">
-          <i class="bi bi-star fs-1 text-warning"></i>
+          <i class="bi bi-star fs-1 text-warning" aria-hidden="true"></i>
           <h5 class="card-title mt-3">User Reviews & Ratings</h5>
           <p class="card-text text-muted">
             Read and write reviews. Share your opinion and see what others
@@ -67,7 +80,7 @@ block content %}
     <div class="col-md-4">
       <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-3">
         <div class="card-body">
-          <i class="bi bi-bookmark-heart fs-1 text-danger"></i>
+          <i class="bi bi-bookmark-heart fs-1 text-danger" aria-hidden="true"></i>
           <h5 class="card-title mt-3">Personal Watchlists</h5>
           <p class="card-text text-muted">
             Save movies to your watchlist and never forget what to watch next.
@@ -80,23 +93,23 @@ block content %}
   <!-- Technology Stack -->
   <div class="bg-light rounded-4 p-4 mb-5">
     <h3 class="fw-bold text-center mb-4">
-      <i class="bi bi-code-square"></i> Built With
+      <i class="bi bi-code-square" aria-hidden="true"></i> Built With
     </h3>
     <div class="row text-center g-3">
       <div class="col-6 col-md-3">
-        <i class="bi bi-django fs-2"></i>
+        <i class="bi bi-braces fs-2" aria-hidden="true"></i>
         <p class="mt-2 fw-semibold">Django</p>
       </div>
       <div class="col-6 col-md-3">
-        <i class="bi bi-bootstrap fs-2 text-primary"></i>
+        <i class="bi bi-bootstrap fs-2 text-primary" aria-hidden="true"></i>
         <p class="mt-2 fw-semibold">Bootstrap 5</p>
       </div>
       <div class="col-6 col-md-3">
-        <i class="bi bi-telegram fs-2 text-info"></i>
+        <i class="bi bi-send fs-2 text-info" aria-hidden="true"></i>
         <p class="mt-2 fw-semibold">Telegram API</p>
       </div>
       <div class="col-6 col-md-3">
-        <i class="bi bi-sql fs-2 text-secondary"></i>
+        <i class="bi bi-database fs-2 text-secondary" aria-hidden="true"></i>
         <p class="mt-2 fw-semibold">PostgreSQL / SQLite</p>
       </div>
     </div>
@@ -109,14 +122,30 @@ block content %}
       Join our community today and explore thousands of movies.
     </p>
     {% if not user.is_authenticated %}
-    <a href="{% url 'register' %}" class="btn btn-light btn-lg px-4"
-      >Get Started →</a
-    >
+    <a href="{% url 'register' %}" class="btn btn-light btn-lg px-4" role="button">Get Started →</a>
     {% else %}
-    <a href="{% url 'video_list' %}" class="btn btn-light btn-lg px-4"
-      >Browse Movies →</a
-    >
+    <a href="{% url 'video_list' %}" class="btn btn-light btn-lg px-4" role="button">Browse Movies →</a>
     {% endif %}
   </div>
 </div>
+
+<!-- JSON-LD Structured Data for SEO -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "About MoviesHub",
+  "description": "MoviesHub is a community-driven platform for discovering, streaming, and enjoying movies from every genre.",
+  "url": "{{ request.build_absolute_uri }}",
+  "mainEntity": {
+    "@type": "WebSite",
+    "name": "MoviesHub",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "{{ request.build_absolute_uri }}{% url 'video_list' %}?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+}
+</script>
 {% endblock %}
