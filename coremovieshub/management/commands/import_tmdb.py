@@ -23,7 +23,7 @@ class Command(BaseCommand):
         csv_path = (
             settings.BASE_DIR
             / "data"
-            / "TMDB_movies_final.csv"
+            / "MoviesHub_metadata.csv"
         )
 
         batch_size = options["batch_size"]

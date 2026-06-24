@@ -1,12 +1,3 @@
-
-# update_tmdb_dataset.py
-
-# Run:
-# python update_tmdb_dataset.py
-
-# Then refresh Django:
-# python manage.py import_tmdb_csv
-
 import re
 import shutil
 from pathlib import Path
@@ -18,8 +9,6 @@ import pandas as pd
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
-# BASE_DIR = Path(__file__).resolve().parent.parent
 
 BASE_DIR = Path(__file__).resolve().parent
 
