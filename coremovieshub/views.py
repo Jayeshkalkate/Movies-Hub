@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import F
 import asyncio
+from asgiref.sync import async_to_sync
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
@@ -18,7 +19,6 @@ from .telegram_utils import (
 )
 from django.core.mail import send_mail
 from django.contrib import messages
-from django.conf import settings
 from .forms import (
     TelegramMovieUploadForm,
     TelegramMovieEditForm,
@@ -164,11 +164,11 @@ def website_download(request, movie_id):
         bot = Bot(
             token=settings.TELEGRAM_BOT_TOKEN
         )
-
-        telegram_file = asyncio.run(
-            bot.get_file(
-                movie.telegram_file_id
-            )
+        
+        telegram_file = async_to_sync(
+            bot.get_file
+        )(
+            movie.telegram_file_id
         )
 
         download_url = (
@@ -670,20 +670,34 @@ def search_movies(request):
         }
     )
 
+from django.db import OperationalError
+
 def home(request):
-    latest_movies = (
-        TelegramMovie.objects
-        .select_related("category", "channel")
-        .order_by("-created_at")[:12]
-    )
+    try:
+        latest_movies = list(
+            TelegramMovie.objects
+            .select_related("category", "channel")
+            .order_by("-created_at")[:12]
+        )
 
-    featured_movies = (
-        TelegramMovie.objects
-        .select_related("category", "channel")
-        .filter(is_featured=True)[:8]
-    )
+        featured_movies = list(
+            TelegramMovie.objects
+            .select_related("category", "channel")
+            .filter(is_featured=True)[:8]
+        )
 
-    categories = Category.objects.all()
+        categories = list(
+            Category.objects.all()
+        )
+
+    except OperationalError as e:
+        logger.exception(
+            f"Database Error: {e}"
+        )
+
+        latest_movies = []
+        featured_movies = []
+        categories = []
 
     return render(
         request,

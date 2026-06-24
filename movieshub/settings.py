@@ -124,10 +124,16 @@ if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=0,
             ssl_require=True,
         )
     }
+
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+    DATABASES["default"]["OPTIONS"] = {
+        "sslmode": "require",
+    }
+
 else:
     DATABASES = {
         "default": {
@@ -258,41 +264,6 @@ CACHES = {
         "LOCATION": "movieshub-cache",
     }
 }
-
-# --------------------------------------------------
-# LOGGING
-# --------------------------------------------------
-
-# LOGGING = {
-#     "version": 1,
-#     "disable_existing_loggers": False,
-#     "handlers": {
-#         "console": {
-#             "class": "logging.StreamHandler",
-#         },
-#     },
-#     "root": {
-#         "handlers": ["console"],
-#         "level": "INFO",
-#         },
-#     "loggers": {
-#         "django.security": {
-#             "handlers": ["console"],
-#             "level": "WARNING",
-#             "propagate": False,
-#             },
-#         "telegram": {
-#             "handlers": ["console"],
-#             "level": "INFO",
-#             "propagate": False,
-#             },
-#         "coremovieshub": {
-#             "handlers": ["console"],
-#             "level": "INFO",
-#             "propagate": False,
-#             },
-#         },
-#     },
 
 # --------------------------------------------------
 # TELEGRAM BOT
