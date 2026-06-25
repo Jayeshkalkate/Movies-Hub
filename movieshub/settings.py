@@ -17,6 +17,9 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
 # BASE DIRECTORY
@@ -276,7 +279,17 @@ if not DEBUG and not TELEGRAM_BOT_TOKEN:
         "TELEGRAM_BOT_TOKEN environment variable is required."
     )
     
-TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
+TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
+
+if TELEGRAM_CHANNEL_ID:
+    try:
+        TELEGRAM_CHANNEL_ID = int(TELEGRAM_CHANNEL_ID)
+    except ValueError:
+        raise ValueError(
+            "TELEGRAM_CHANNEL_ID must be a valid Telegram chat ID."
+        )
+else:
+    TELEGRAM_CHANNEL_ID = None
 
 TELEGRAM_BOT_USERNAME = os.getenv(
     "TELEGRAM_BOT_USERNAME",
@@ -316,7 +329,10 @@ SECURE_PROXY_SSL_HEADER = (
 # BASE URL
 # --------------------------------------------------
 
-BASE_URL = os.environ.get("BASE_URL")
+BASE_URL = os.getenv(
+    "BASE_URL",
+    "https://movies-hub-6dhp.onrender.com"
+)
 
 # Cookie Security
 SESSION_COOKIE_HTTPONLY = True
@@ -333,12 +349,25 @@ SECURE_REFERRER_POLICY = "same-origin"
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
-MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID")
+# --------------------------------------------------
+# MAIN CHANNEL
+# --------------------------------------------------
 
-if not DEBUG and not MAIN_CHANNEL_ID:
-    raise ValueError(
-        "MAIN_CHANNEL_ID environment variable is required."
-    )
+MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID", "").strip()
+
+if MAIN_CHANNEL_ID:
+    try:
+        MAIN_CHANNEL_ID = int(MAIN_CHANNEL_ID)
+    except ValueError:
+        raise ValueError(
+            "MAIN_CHANNEL_ID must be a valid Telegram chat ID (example: -1001234567890)."
+        )
+else:
+    if DEBUG:
+        MAIN_CHANNEL_ID = None
+    else:
+        logger.warning("MAIN_CHANNEL_ID is not configured.")
+        MAIN_CHANNEL_ID = None
 
 
 # --------------------------------------------------
@@ -373,10 +402,16 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 EMAIL_TIMEOUT = 30
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or "noreply@movieshub.com"
 
 # --------------------------------------------------
 # API KEY
 # --------------------------------------------------
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+if not DEBUG and not TMDB_API_KEY:
+    raise ValueError(
+        "TMDB_API_KEY environment variable is required."
+    )
+    
