@@ -27,12 +27,13 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-load_dotenv()
-
 DEBUG = os.getenv(
     "DEBUG",
     "False"
 ).lower() == "true"
+
+if DEBUG:
+    load_dotenv()
 
 # --------------------------------------------------
 # SECURITY
@@ -410,8 +411,8 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or "noreply@movieshub.com"
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-if not DEBUG and not TMDB_API_KEY:
-    raise ValueError(
-        "TMDB_API_KEY environment variable is required."
+if not TMDB_API_KEY:
+    logger.warning(
+        "TMDB_API_KEY is not configured. TMDB metadata lookup is disabled."
     )
     
