@@ -9,11 +9,11 @@
         <h1 class="mb-2 mb-sm-0">
             <i class="bi bi-film"></i> Movie Library
         </h1>
-        <div class="d-flex gap-2">
+        {% comment %} <div class="d-flex gap-2">
             <span class="badge bg-primary fs-6">
                 {{ page_obj.paginator.count|default:movies|length }} Movies
             </span>
-        </div>
+        </div> {% endcomment %}
     </div>
 
     <!-- Search & Filter Bar -->
@@ -27,7 +27,7 @@
                     </div>
                 </div>
                 
-                <div class="col-md-4">
+                {% comment %} <div class="col-md-4">
                 <select name="category" class="form-select">
                 <option value="">All Categories</option>
                 
@@ -41,12 +41,15 @@
                 {% endfor %}
                 
                 </select>
-                </div>
-                <div class="col-md-3">
+                </div> {% endcomment %}
+
+                {% comment %} <div class="col-md-3">
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="bi bi-funnel"></i> Apply Filters
                     </button>
                 </div>
+                 {% endcomment %}
+
             </form>
         </div>
     </div>
