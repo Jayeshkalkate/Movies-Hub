@@ -9,73 +9,107 @@ logger = logging.getLogger(__name__)
 #    (case‑insensitive, compiled once for performance)
 # -------------------------------------------------------------------
 METADATA_PATTERNS = [
-    # ─── Resolution ────────────────────────────────────────────────
-    r"\b2160p\b", r"\b1440p\b", r"\b1080p\b", r"\b720p\b", r"\b480p\b",
 
-    # ─── Source / Rip type ────────────────────────────────────────
-    r"\bWEB[- ]DL\b", r"\bWEBRip\b", r"\bBluRay\b", r"\bHDRip\b", r"\bDVDRip\b",
-    r"\bCAM\b", r"\bHDTC\b", r"\bHC\b", r"\bWEB\b", r"\bWEBHD\b",
-    r"\bBRRip\b", r"\bBDRip\b", r"\bBlu-Ray\b",          # added
+    # Resolution
+    r"\b2160p\b",
+    r"\b1440p\b",
+    r"\b1080p\b",
+    r"\b720p\b",
+    r"\b480p\b",
 
-    # ─── Languages ────────────────────────────────────────────────
-    r"\bHindi\b", r"\bEnglish\b", r"\bTamil\b", r"\bTelugu\b", r"\bMalayalam\b",
+    # Source
+    r"\bWEB[- ]?DL\b",
+    r"\bWEBRip\b",
+    r"\bWEBHD\b",
+    r"\bHDRip\b",
+    r"\bBlu[- ]?Ray\b",
+    r"\bBRRip\b",
+    r"\bBDRip\b",
+    r"\bDVDRip\b",
+    r"\bHDTS\b",
+    r"\bHDTC\b",
+    r"\bHDCAM\b",
+    r"\bCAMRip\b",
+    r"\bCAM\b",
+    r"\bHC\b",
 
-    # ─── Audio / Subtitle flags ──────────────────────────────────
-    r"\bDual Audio\b", r"\bORG\b", r"\bDubbed\b", r"\bESub\b", r"\bESubs?\b",
+    # Codecs
+    r"\bx264\b",
+    r"\bx265\b",
+    r"\bH264\b",
+    r"\bH265\b",
+    r"\bHEVC\b",
+    r"\bHE\b",
 
-    # ─── Codec & bit depth ────────────────────────────────────────
-    r"\b10bit\b", r"\bHEVC\b", r"\bAAC\b", r"\bDDP\b",
-    r"\bH264\b", r"\bH265\b",                                 # added
-    r"\bHE\b",                                                # often used for HEVC
-
-    # ─── Video codec (old style) ─────────────────────────────────
-    r"\bx264\b", r"\bx265\b",
-
-    # ─── Audio channels ───────────────────────────────────────────
-    r"\b2CH\b", r"\b5\.1\b",
-
-    # ─── Release groups ──────────────────────────────────────────
-    r"\bPSA\b", r"\bImmortal\b", r"\bGodfather\b", r"\bYTS\b", r"\bAM\b",
-
-    # ─── File extensions ─────────────────────────────────────────
-    r"\bmkv\b", r"\bmp4\b", r"\bavi\b",
-
-    # ─── Spam / promotions ───────────────────────────────────────
-    r"JOIN\s+@\w+",
-    r"\bor\b",                                                # standalone "or"
-
-    # ─── Season / Episode / Part ─────────────────────────────────
-    r"\bSeason\s*\d+\b", r"\bS\d+\b",
-    r"\bEpisode\s*\d+\b", r"\bE\d+\b",
-    r"\bPart\s*\d+\b",
-
-    # ─── Miscellaneous ────────────────────────────────────────────
-    r"\bComplete\b", r"\bSeries\b",
-    r"\bMulti Audio\b", r"\bMultiAudio\b",
-
-    # ─── Year (four digits) ──────────────────────────────────────
-    r"\b(?:19|20)\d{2}\b",
-
-    # ─── Additional audio codecs & formats ──────────────────────
-    r"\bDD\s*\d+\s*\d+\b",          # "DD 5 1", "DD5.1", etc.
-    r"\bAAC\s*\d+\s*\d+\b",         # "AAC 5.1"
-    r"\bNF\b",                      # Netflix
-
-    # ─── HDR / Dolby / DTS ──────────────────────────────────────
-    r"\bHDR\b",
-    r"\bHDR10\b",
-    r"\bHDR10\+\b",                # escaped '+'
-    r"\bDolby\b",
-    r"\bAtmos\b",
+    # Audio
+    r"\bAAC\b",
+    r"\bDDP\b",
+    r"\bDD5\.1\b",
+    r"\b5\.1\b",
+    r"\b2CH\b",
     r"\bTrueHD\b",
+    r"\bAtmos\b",
+    r"\bDolby\b",
     r"\bDTS\b",
 
-    # ─── Edition / status flags ──────────────────────────────────
+    # HDR
+    r"\bHDR\b",
+    r"\bHDR10\b",
+    r"\bHDR10\+\b",
+
+    # Languages
+    r"\bHindi\b",
+    r"\bEnglish\b",
+    r"\bTamil\b",
+    r"\bTelugu\b",
+    r"\bMalayalam\b",
+    r"\bKannada\b",
+    r"\bMarathi\b",
+    r"\bPunjabi\b",
+    r"\bBengali\b",
+
+    # Audio flags
+    r"\bDual Audio\b",
+    r"\bMulti Audio\b",
+    r"\bMultiAudio\b",
+    r"\bORG\b",
+    r"\bDubbed\b",
+    r"\bESub\b",
+    r"\bESubs\b",
+
+    # Misc
+    r"\bComplete\b",
+    r"\bSeries\b",
     r"\bUNCUT\b",
     r"\bEXTENDED\b",
     r"\bREMASTERED\b",
     r"\bPROPER\b",
     r"\bREPACK\b",
+    r"\bNF\b",
+
+    # Release Groups
+    r"\bPSA\b",
+    r"\bYTS\b",
+    r"\bAM\b",
+    r"\bImmortal\b",
+    r"\bGodfather\b",
+
+    # File extensions
+    r"\bmkv\b",
+    r"\bmp4\b",
+    r"\bavi\b",
+
+    # Season / Episode
+    r"\bSeason\s*\d+\b",
+    r"\bS\d+\b",
+    r"\bEpisode\s*\d+\b",
+    r"\bE\d+\b",
+
+    # Year
+    r"\b(?:19|20)\d{2}\b",
+
+    # Spam
+    r"JOIN\s+@\w+",
 ]
 
 # Compile once, reuse everywhere
@@ -181,6 +215,18 @@ def extract_title(text):
     # -------------------------------------------------
 
     title = _METADATA_RE.sub("", title)
+    
+    
+    # -------------------------------------------------
+    # Remove leftover junk words
+    # -------------------------------------------------
+    
+    title = re.sub(
+        r"\b(HDTS|HDTC|HDCAM|CAMRip|CAM|WEB|WEBRip|WEBDL|BluRay|HDRip|AAC|x264|x265|HEVC|HC|ESub|Hindi|English|Tamil|Telugu|Malayalam|Kannada|Marathi|Punjabi|Bengali)\b",
+        "",
+        title,
+        flags=re.IGNORECASE,
+    )
 
     # -------------------------------------------------
     # Remove empty brackets
@@ -252,20 +298,30 @@ def extract_quality(text):
 
 
 def extract_language(text):
-    """
-    Extract audio language information.
-    Returns 'Dual Audio', 'Hindi', 'English', or empty string.
-    """
     if not text:
         return ""
 
     lower = str(text).lower()
+
     if "dual audio" in lower:
         return "Dual Audio"
-    if "hindi" in lower:
-        return "Hindi"
-    if "english" in lower:
-        return "English"
+
+    languages = [
+        "Hindi",
+        "English",
+        "Tamil",
+        "Telugu",
+        "Malayalam",
+        "Kannada",
+        "Marathi",
+        "Punjabi",
+        "Bengali",
+    ]
+
+    for lang in languages:
+        if lang.lower() in lower:
+            return lang
+
     return ""
 
 
