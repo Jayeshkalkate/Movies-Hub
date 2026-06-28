@@ -10,7 +10,7 @@ Handles:
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
@@ -33,8 +33,7 @@ from coremovieshub.utils.movie_parser import (
     extract_season,
     extract_year,
 )
-from metadata.manager import Manager, get_manager
-from metadata.cache import save_metadata, find_by_title
+from metadata.manager import get_manager
 
 logger = logging.getLogger(__name__)
 
@@ -415,7 +414,7 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     """
     Process a channel post and save movie metadata.
-    Uses the new metadata manager to fetch and cache details.
+    All metadata enrichment is delegated to the Manager.
     """
     caption = post.caption or ""
     title = extract_title(caption) or extract_title(
@@ -435,12 +434,11 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     quality = extract_quality(caption)
     description = clean_caption(caption)
 
-    # Use the new metadata manager to enrich data
+    # Use the metadata manager – it handles extraction, caching, and fallback internally
     manager = get_manager()
-    # Try to get metadata from manager (it will cache)
-    metadata = manager.process_caption(caption)  # This uses the full pipeline
+    metadata = manager.process_caption(caption)
 
-    # Fallback if manager returns nothing
+    # If metadata is available, enrich the record; otherwise fall back to defaults
     if metadata:
         poster = metadata.get("poster")
         banner = metadata.get("backdrop") or poster
@@ -448,6 +446,9 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         rating = metadata.get("rating")
         release_date = metadata.get("release_date")
         tmdb_id = metadata.get("external_id") if metadata.get("source") == "tmdb" else None
+        # Use the canonical title from the metadata if present
+        if metadata.get("title"):
+            title = metadata["title"]
     else:
         poster = None
         banner = None
@@ -525,4 +526,3 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.info("Movie saved successfully.")
     except Exception:
         logger.exception("Failed to save channel movie.")
-        

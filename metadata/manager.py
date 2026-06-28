@@ -21,7 +21,8 @@ All external dependencies are injected via constructor for testability.
 """
 
 import logging
-from typing import Optional, Dict, Any, Callable
+import re
+from typing import Optional, Dict, Any, Callable, List
 from .extractor import extract, ExtractedContent
 
 # from .cache import (
@@ -131,6 +132,51 @@ class Manager:
         self.format_jikan_fn = format_jikan_fn
         self.format_anilist_fn = format_anilist_fn
 
+    def _get_caption_variants(self, caption: str) -> List[str]:
+        """
+        Generate alternative versions of the caption to improve extraction chances.
+        Returns a list of strings, the original caption first.
+        """
+        variants = [caption]  # always try the original first
+
+        # 1. First line only (often contains the main title)
+        first_line = caption.split('\n')[0].strip()
+        if first_line and first_line != caption:
+            variants.append(first_line)
+
+        # 2. Remove common release-group tags (e.g., [WEBRip], [x264], etc.)
+        cleaned = re.sub(r'\[[^\]]+\]', '', caption)  # removes [tag]
+        cleaned = re.sub(r'\([^)]+\)', '', cleaned)   # removes (tag)
+        cleaned = re.sub(r'\{[^}]+\}', '', cleaned)   # removes {tag}
+        cleaned = ' '.join(cleaned.split())           # collapse whitespace
+        if cleaned and cleaned != caption:
+            variants.append(cleaned)
+
+        # 3. Text before the first year (e.g., "Movie Title 2024" -> "Movie Title")
+        year_match = re.search(r'\b(19|20)\d{2}\b', caption)
+        if year_match:
+            before_year = caption[:year_match.start()].strip()
+            # Also remove trailing punctuation or separators
+            before_year = re.sub(r'[:\-–—|•·]+$', '', before_year).strip()
+            if before_year and before_year != caption:
+                variants.append(before_year)
+
+        # 4. If the caption is very long, take a substring up to a reasonable length
+        #    (sometimes the title is at the very beginning)
+        if len(caption) > 80:
+            short = caption[:80].rsplit(' ', 1)[0]  # cut at word boundary
+            if short and short != caption:
+                variants.append(short)
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_variants = []
+        for v in variants:
+            if v not in seen:
+                seen.add(v)
+                unique_variants.append(v)
+        return unique_variants
+
     def _search_provider_and_format(
         self,
         title: str,
@@ -235,7 +281,6 @@ class Manager:
                         self.save_metadata_fn(metadata)
                     except Exception:
                         logger.exception("Failed to cache metadata")
-                            
                     return metadata
 
             except TMDbError as e:
@@ -250,7 +295,6 @@ class Manager:
                         self.save_metadata_fn(metadata)
                     except Exception:
                         logger.exception("Failed to cache metadata")
-                            
                     return metadata
             except TVMazeError as e:
                 logger.error(f"TVMaze fetch failed for '{title}': {e}")
@@ -264,7 +308,6 @@ class Manager:
                         self.save_metadata_fn(metadata)
                     except Exception:
                         logger.exception("Failed to cache metadata")
-                            
                     return metadata
             except JikanError as e:
                 logger.warning(f"Jikan fetch failed for '{title}': {e}, falling back to AniList")
@@ -278,7 +321,6 @@ class Manager:
                         self.save_metadata_fn(metadata)
                     except Exception:
                         logger.exception("Failed to cache metadata")
-                            
                     return metadata
             except AniListError as e:
                 logger.error(f"AniList fetch also failed for '{title}': {e}")
@@ -300,16 +342,22 @@ class Manager:
         """
         logger.info(f"Processing caption: {caption[:100]}...")
 
-        # Step 1: Extract
-        try:
-            extracted = self.extractor_fn(caption)
-            logger.debug(f"Extracted: {extracted}")
-        except Exception as e:
-            logger.error(f"Extraction failed: {e}")
-            return None
+        # Step 1: Try extraction on multiple caption variants
+        variants = self._get_caption_variants(caption)
+        extracted = None
+        for idx, variant in enumerate(variants):
+            try:
+                candidate = self.extractor_fn(variant)
+                if candidate.title:   # we have a title, good
+                    extracted = candidate
+                    logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
+                    break
+            except Exception as e:
+                logger.debug(f"Extraction failed for variant #{idx}: {e}")
+                continue
 
-        if not extracted.title:
-            logger.warning("No title extracted from caption")
+        if not extracted or not extracted.title:
+            logger.warning("No title extracted from any caption variant")
             return None
 
         # Step 2: Detect content type
