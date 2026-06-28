@@ -26,14 +26,10 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables
-DEBUG = os.getenv(
-    "DEBUG",
-    "False"
-).lower() == "true"
+# Always load .env for local development
+load_dotenv(BASE_DIR / ".env")
 
-if DEBUG:
-    load_dotenv()
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 # --------------------------------------------------
 # SECURITY
@@ -47,7 +43,6 @@ if not SECRET_KEY and not DEBUG:
 
 if not SECRET_KEY:
     SECRET_KEY = "django-insecure-dev-only-key"
-    
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -416,3 +411,22 @@ if not TMDB_API_KEY:
         "TMDB_API_KEY is not configured. TMDB metadata lookup is disabled."
     )
     
+TMDB_BASE_URL = os.getenv(
+    "TMDB_BASE_URL",
+    "https://api.themoviedb.org/3"
+)
+
+TVMAZE_BASE_URL = os.getenv(
+    "TVMAZE_BASE_URL",
+    "https://api.tvmaze.com"
+)
+
+JIKAN_BASE_URL = os.getenv(
+    "JIKAN_BASE_URL",
+    "https://api.jikan.moe/v4"
+)
+
+ANILIST_URL = os.getenv(
+    "ANILIST_URL",
+    "https://graphql.anilist.co"
+)

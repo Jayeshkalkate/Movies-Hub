@@ -424,6 +424,34 @@ class TelegramMovie(models.Model):
                 2 * 1024 * 1024 * 1024
         )
 
+# =====================================================
+# SAVE CHANNEL
+# =====================================================
+
+def save_channel_movie(message, channel, **extra_data):
+    # Extract the unique identifiers
+    telegram_message_id = message.message_id
+    # ... other data from the message
+
+    # Try to get or create the movie
+    movie, created = TelegramMovie.objects.get_or_create(
+        telegram_message_id=telegram_message_id,
+        channel=channel,
+        defaults={
+            'title': message.caption or "Untitled",
+            # ... all other fields
+        }
+    )
+
+    if created:
+        # New movie added – you can log, send notifications, etc.
+        pass
+    else:
+        # Already exists – optionally update fields if needed
+        # (e.g., update file_id, caption, etc.)
+        pass
+
+    return movie, created
 
 # =====================================================
 # USER WATCHLIST
