@@ -35,19 +35,31 @@ from django.conf import settings
 
 # Try to import the movie parser
 try:
-    from movie_parser import parse_movie
+    from coremovieshub.utils.movie_parser import parse_movie
     PARSER_AVAILABLE = True
+
 except ImportError:
     PARSER_AVAILABLE = False
-    # Fallback: define a simple clean function
+
     def parse_movie(text: str) -> Dict[str, Any]:
         """Fallback parser when movie_parser is unavailable."""
-        # rudimentary cleaning: remove common tags and year
-        text = re.sub(r'\b(?:WEB-DL|WEBRip|BluRay|HDRip|x264|x265|HEVC|DDP|AAC|AC3|DTS)\b', '', text, flags=re.I)
-        text = re.sub(r'\b(19|20)\d{2}\b', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
-        return {'title': text, 'year': None, 'season': None, 'episode': None,
-                'quality': None, 'languages': None}
+        text = re.sub(
+            r"\b(?:WEB-DL|WEBRip|BluRay|HDRip|x264|x265|HEVC|DDP|AAC|AC3|DTS)\b",
+            "",
+            text,
+            flags=re.I,
+        )
+        text = re.sub(r"\b(19|20)\d{2}\b", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return {
+            "title": text,
+            "year": None,
+            "season": None,
+            "episode": None,
+            "quality": None,
+            "languages": [],
+        }
 
 # Module logger
 logger = logging.getLogger(__name__)

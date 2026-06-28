@@ -6,13 +6,15 @@ fetching layers to deliver a complete metadata pipeline from a Telegram caption.
 
 Workflow:
     1. Extract structured data from caption (title, year, etc.)
-    2. Detect content type (movie, tv, anime, unknown)
+    2. Detect content type (movie, tv, anime, unknown) – used for logging/hints
     3. Check cache by title (and optionally year/type)
     4. If cached, return metadata
-    5. Else, query the appropriate provider(s):
-        - Movie → TMDb
-        - TV   → TVMaze
-        - Anime → Jikan (fallback to AniList)
+    5. Else, query providers in a deterministic fallback chain:
+        - TMDb Movie search
+        - TMDb TV search
+        - TVMaze (TV shows)
+        - AniList (anime)
+        - Jikan (anime)
     6. Format the raw response into the common schema
     7. Save to cache
     8. Return the metadata
@@ -22,49 +24,38 @@ All external dependencies are injected via constructor for testability.
 
 import logging
 import re
-from typing import Optional, Dict, Any, Callable, List
+from typing import Optional, Dict, Any, Callable, List, Tuple
+
 from .extractor import extract, ExtractedContent
-
-# from .cache import (
-#     save_metadata,
-#     find_by_title,
-# )
-
 from .tmdb_cache import (
     save_metadata,
     find_by_title,
 )
-
 from .detector import (
     detect,
     ContentType,
 )
-
 from .formatter import (
     format_tmdb,
     format_tvmaze,
     format_jikan,
     format_anilist,
 )
-
 from .providers.tmdb import (
     TMDbClient,
     get_tmdb_client,
     TMDbError,
 )
-
 from .providers.tvmaze import (
     TVMazeClient,
     get_tvmaze_client,
     TVMazeError,
 )
-
 from .providers.jikan import (
     JikanClient,
     get_jikan_client,
     JikanError,
 )
-
 from .providers.anilist import (
     AniListClient,
     get_anilist_client,
@@ -77,6 +68,9 @@ logger = logging.getLogger(__name__)
 class Manager:
     """
     Main orchestration class for content metadata retrieval.
+
+    Uses a fallback chain of providers to maximize hit rate, regardless of
+    initial content type detection.
 
     Attributes:
         tmdb_client: TMDb client instance.
@@ -93,6 +87,16 @@ class Manager:
         format_jikan_fn: Jikan formatter function.
         format_anilist_fn: AniList formatter function.
     """
+
+    # Provider order – from most likely to least likely,
+    # covering movies, TV, and anime.
+    PROVIDER_CHAIN = [
+        "tmdb_movie",
+        "tmdb_tv",
+        "tvmaze",
+        "anilist",
+        "jikan",
+    ]
 
     def __init__(
         self,
@@ -177,63 +181,60 @@ class Manager:
                 unique_variants.append(v)
         return unique_variants
 
-    def _search_provider_and_format(
+    def _search_and_format(
         self,
+        provider_type: str,
         title: str,
         year: Optional[int],
-        provider_type: str,
     ) -> Optional[Dict[str, Any]]:
         """
-        Internal helper to query a provider and format the result.
+        Query a specific provider and format the result.
 
         Args:
+            provider_type: One of 'tmdb_movie', 'tmdb_tv', 'tvmaze',
+                           'anilist', 'jikan'.
             title: Search title.
-            year: Optional year filter.
-            provider_type: One of 'tmdb', 'tvmaze', 'jikan', 'anilist'.
+            year: Optional year filter (used where supported).
 
         Returns:
             Optional[Dict[str, Any]]: Formatted metadata or None if no results.
 
         Raises:
-            Exception: Re-raises provider-specific errors.
+            Provider-specific exceptions (caught by caller).
         """
-        formatted = None
         raw_response = None
+        formatted = None
 
-        if provider_type == "tmdb":
-            # Search movie
+        if provider_type == "tmdb_movie":
             raw_response = self.tmdb_client.search_movie(title, year=year)
             results = raw_response.get("results", [])
             if results:
-                # Take the first result
                 first = results[0]
                 formatted = self.format_tmdb_fn(first, content_type="movie")
             else:
-                logger.info(f"No TMDb results for '{title}'")
+                logger.debug(f"No TMDb movie results for '{title}'")
+                return None
+
+        elif provider_type == "tmdb_tv":
+            raw_response = self.tmdb_client.search_tv(title, first_air_date_year=year)
+            results = raw_response.get("results", [])
+            if results:
+                first = results[0]
+                formatted = self.format_tmdb_fn(first, content_type="tv")
+            else:
+                logger.debug(f"No TMDb TV results for '{title}'")
                 return None
 
         elif provider_type == "tvmaze":
             raw_response = self.tvmaze_client.search_show(title)
             if raw_response:
-                # TVMaze search returns list of objects; take first
                 first = raw_response[0]
                 formatted = self.format_tvmaze_fn(first)
             else:
-                logger.info(f"No TVMaze results for '{title}'")
-                return None
-
-        elif provider_type == "jikan":
-            raw_response = self.jikan_client.search_anime(title, year=year)
-            results = raw_response.get("data", [])
-            if results:
-                first = results[0]
-                formatted = self.format_jikan_fn(first)
-            else:
-                logger.info(f"No Jikan results for '{title}'")
+                logger.debug(f"No TVMaze results for '{title}'")
                 return None
 
         elif provider_type == "anilist":
-            # AniList search: we can pass year as seasonYear
             raw_response = self.anilist_client.search_anime(
                 title=title,
                 year=year,
@@ -246,24 +247,45 @@ class Manager:
                 first = media_list[0]
                 formatted = self.format_anilist_fn(first)
             else:
-                logger.info(f"No AniList results for '{title}'")
+                logger.debug(f"No AniList results for '{title}'")
+                return None
+
+        elif provider_type == "jikan":
+            raw_response = self.jikan_client.search_anime(title, year=year)
+            results = raw_response.get("data", [])
+            if results:
+                first = results[0]
+                formatted = self.format_jikan_fn(first)
+            else:
+                logger.debug(f"No Jikan results for '{title}'")
                 return None
 
         else:
             raise ValueError(f"Unknown provider_type: {provider_type}")
 
-        # Ensure we have a valid result
+        # Ensure we have a valid result with an external ID
         if formatted and formatted.get("external_id"):
             return formatted
         else:
             logger.warning(f"Provider {provider_type} returned incomplete data for '{title}'")
             return None
 
-    def _fetch_and_cache(self, extracted: ExtractedContent, content_type: ContentType) -> Optional[Dict[str, Any]]:
+    def _fetch_and_cache(
+        self,
+        extracted: ExtractedContent,
+        content_type: ContentType,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Fetch from appropriate provider(s) based on content type, format, and cache.
+        Fetch metadata using the configured provider fallback chain.
 
-        Returns formatted metadata dict or None if all fail.
+        Tries each provider in order, stops at first success, caches the result.
+
+        Args:
+            extracted: Extracted content info.
+            content_type: Detected content type (used for logging only).
+
+        Returns:
+            Optional[Dict[str, Any]]: Formatted metadata or None.
         """
         title = extracted.title
         year = extracted.year
@@ -272,62 +294,28 @@ class Manager:
             logger.warning("Cannot fetch: missing title")
             return None
 
-        if content_type == ContentType.MOVIE:
-            logger.info(f"Fetching movie '{title}' from TMDb")
+        logger.info(f"Attempting to fetch '{title}' (detected as {content_type.value}) "
+                    f"using chain: {self.PROVIDER_CHAIN}")
+
+        for provider in self.PROVIDER_CHAIN:
             try:
-                metadata = self._search_provider_and_format(title, year, "tmdb")
+                logger.debug(f"Trying provider: {provider}")
+                metadata = self._search_and_format(provider, title, year)
                 if metadata:
+                    logger.info(f"Success with provider {provider} for '{title}'")
                     try:
                         self.save_metadata_fn(metadata)
-                    except Exception:
-                        logger.exception("Failed to cache metadata")
+                    except Exception as e:
+                        logger.exception(f"Failed to cache metadata from {provider}: {e}")
                     return metadata
+            except (TMDbError, TVMazeError, JikanError, AniListError) as e:
+                logger.warning(f"Provider {provider} failed for '{title}': {e}")
+                continue
+            except Exception as e:
+                logger.error(f"Unexpected error from {provider} for '{title}': {e}")
+                continue
 
-            except TMDbError as e:
-                logger.error(f"TMDb fetch failed for '{title}': {e}")
-
-        elif content_type == ContentType.TV:
-            logger.info(f"Fetching TV show '{title}' from TVMaze")
-            try:
-                metadata = self._search_provider_and_format(title, year, "tvmaze")
-                if metadata:
-                    try:
-                        self.save_metadata_fn(metadata)
-                    except Exception:
-                        logger.exception("Failed to cache metadata")
-                    return metadata
-            except TVMazeError as e:
-                logger.error(f"TVMaze fetch failed for '{title}': {e}")
-
-        elif content_type == ContentType.ANIME:
-            logger.info(f"Fetching anime '{title}' from Jikan")
-            try:
-                metadata = self._search_provider_and_format(title, year, "jikan")
-                if metadata:
-                    try:
-                        self.save_metadata_fn(metadata)
-                    except Exception:
-                        logger.exception("Failed to cache metadata")
-                    return metadata
-            except JikanError as e:
-                logger.warning(f"Jikan fetch failed for '{title}': {e}, falling back to AniList")
-
-            # Fallback to AniList
-            try:
-                logger.info(f"Fetching anime '{title}' from AniList (fallback)")
-                metadata = self._search_provider_and_format(title, year, "anilist")
-                if metadata:
-                    try:
-                        self.save_metadata_fn(metadata)
-                    except Exception:
-                        logger.exception("Failed to cache metadata")
-                    return metadata
-            except AniListError as e:
-                logger.error(f"AniList fetch also failed for '{title}': {e}")
-
-        else:
-            logger.warning(f"Unsupported content type: {content_type}")
-
+        logger.warning(f"No provider could find metadata for '{title}'")
         return None
 
     def process_caption(self, caption: str) -> Optional[Dict[str, Any]]:
@@ -348,7 +336,11 @@ class Manager:
         for idx, variant in enumerate(variants):
             try:
                 candidate = self.extractor_fn(variant)
-                if candidate.title:   # we have a title, good
+                if isinstance(candidate, dict):
+                    title = candidate.get("title")
+                else:
+                    title = candidate.title
+                if title:
                     extracted = candidate
                     logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
                     break
@@ -356,11 +348,16 @@ class Manager:
                 logger.debug(f"Extraction failed for variant #{idx}: {e}")
                 continue
 
-        if not extracted or not extracted.title:
+        if isinstance(extracted, dict):
+            title = extracted.get("title")
+        else:
+            title = extracted.title
+            
+        if not extracted or not title:
             logger.warning("No title extracted from any caption variant")
             return None
 
-        # Step 2: Detect content type
+        # Step 2: Detect content type (used for logging and hinting)
         try:
             content_type = self.detector_fn(extracted)
             logger.info(f"Detected content type: {content_type.value}")
@@ -371,26 +368,28 @@ class Manager:
         # Step 3: Check cache by title and year (if available)
         try:
             cached = self.find_by_title_fn(
-                title=extracted.title,
+                title=title,
+                # title=extracted.title,
                 content_type=content_type.value if content_type != ContentType.UNKNOWN else None,
                 year=extracted.year,
             )
             if cached:
-                logger.info(f"Cache hit for title '{extracted.title}'")
+                logger.info(f"Cache hit for title '{title}'")
                 return cached
             else:
                 logger.info(f"Cache miss for title '{extracted.title}'")
         except Exception as e:
             logger.warning(f"Cache lookup by title failed: {e}, proceeding with fetch")
 
-        # Step 4: Fetch from providers if cache miss
+        # Step 4: Fetch from providers using the fallback chain
         metadata = self._fetch_and_cache(extracted, content_type)
 
         if metadata:
             logger.info(f"Successfully retrieved metadata for '{extracted.title}'")
             return metadata
         else:
-            logger.warning(f"No metadata found for '{extracted.title}' after all attempts")
+            logger.warning(f"No metadata found for '{title}' after all attempts")
+            # logger.warning(f"No metadata found for '{extracted.title}' after all attempts")
             return None
 
 
@@ -425,4 +424,5 @@ if __name__ == "__main__":
         print("Result:", result)
     else:
         print("No metadata found.")
+        
         

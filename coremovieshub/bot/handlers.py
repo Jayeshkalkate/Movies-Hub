@@ -17,7 +17,14 @@ from django.conf import settings
 from django.utils import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-
+from coremovieshub.utils.movie_parser import (
+    clean_caption,
+    extract_title,
+    extract_quality,
+    extract_languages,
+    extract_season,
+    extract_year,
+)
 from coremovieshub.models import (
     MembershipVerification,
     Category,
@@ -25,14 +32,14 @@ from coremovieshub.models import (
     TelegramMovie,
 )
 from coremovieshub.telegram_utils import check_telegram_membership
-from coremovieshub.utils.movie_parser import (
-    clean_caption,
-    extract_title,
-    extract_quality,
-    extract_language,
-    extract_season,
-    extract_year,
-)
+# from coremovieshub.utils.movie_parser import (
+#     clean_caption,
+#     extract_title,
+#     extract_quality,
+#     extract_languages,
+#     extract_season,
+#     extract_year,
+# )
 from metadata.manager import get_manager
 
 logger = logging.getLogger(__name__)
@@ -352,7 +359,7 @@ async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         year=context.user_data.get("year"),
         quality=context.user_data["quality"],
         description=caption,
-        language=extract_language(caption),
+        language=extract_languages(caption),
         season=extract_season(caption),
     )
 
