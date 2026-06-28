@@ -24,7 +24,12 @@ import logging
 from typing import Optional, Dict, Any, Callable
 from .extractor import extract, ExtractedContent
 
-from .cache import (
+# from .cache import (
+#     save_metadata,
+#     find_by_title,
+# )
+
+from .tmdb_cache import (
     save_metadata,
     find_by_title,
 )
@@ -226,8 +231,13 @@ class Manager:
             try:
                 metadata = self._search_provider_and_format(title, year, "tmdb")
                 if metadata:
-                    self.save_metadata_fn(metadata)
+                    try:
+                        self.save_metadata_fn(metadata)
+                    except Exception:
+                        logger.exception("Failed to cache metadata")
+                            
                     return metadata
+
             except TMDbError as e:
                 logger.error(f"TMDb fetch failed for '{title}': {e}")
 
@@ -236,7 +246,11 @@ class Manager:
             try:
                 metadata = self._search_provider_and_format(title, year, "tvmaze")
                 if metadata:
-                    self.save_metadata_fn(metadata)
+                    try:
+                        self.save_metadata_fn(metadata)
+                    except Exception:
+                        logger.exception("Failed to cache metadata")
+                            
                     return metadata
             except TVMazeError as e:
                 logger.error(f"TVMaze fetch failed for '{title}': {e}")
@@ -246,7 +260,11 @@ class Manager:
             try:
                 metadata = self._search_provider_and_format(title, year, "jikan")
                 if metadata:
-                    self.save_metadata_fn(metadata)
+                    try:
+                        self.save_metadata_fn(metadata)
+                    except Exception:
+                        logger.exception("Failed to cache metadata")
+                            
                     return metadata
             except JikanError as e:
                 logger.warning(f"Jikan fetch failed for '{title}': {e}, falling back to AniList")
@@ -256,7 +274,11 @@ class Manager:
                 logger.info(f"Fetching anime '{title}' from AniList (fallback)")
                 metadata = self._search_provider_and_format(title, year, "anilist")
                 if metadata:
-                    self.save_metadata_fn(metadata)
+                    try:
+                        self.save_metadata_fn(metadata)
+                    except Exception:
+                        logger.exception("Failed to cache metadata")
+                            
                     return metadata
             except AniListError as e:
                 logger.error(f"AniList fetch also failed for '{title}': {e}")

@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
-
+import re
 
 # =====================================================
 # CUSTOM USER
@@ -135,7 +135,7 @@ class TelegramChannel(models.Model):
 
 
 # =====================================================
-# TMBD MOVIE
+# TMDB MOVIE
 # =====================================================
 
 class TMDBMovie(models.Model):
@@ -146,17 +146,17 @@ class TMDBMovie(models.Model):
 
     title_normalized = models.CharField(
         max_length=500,
-        unique=True,
+        db_index=True,
         blank=True,
     )
-    
+
     tmdb_id = models.IntegerField(
         unique=True,
         null=True,
         blank=True,
         db_index=True,
     )
-    
+
     backdrop_path = models.TextField(
         blank=True,
     )
@@ -182,9 +182,24 @@ class TMDBMovie(models.Model):
         null=True,
         blank=True,
     )
-    
+
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        # Normalize title if present
+        if self.title:
+            self.title_normalized = re.sub(
+                r"[^\w\s]",
+                " ",
+                self.title.lower()
+            )
+            self.title_normalized = re.sub(
+                r"\s+",
+                " ",
+                self.title_normalized
+            ).strip()
+        super().save(*args, **kwargs)
 
     class Meta:
         indexes = [
@@ -193,7 +208,7 @@ class TMDBMovie(models.Model):
             models.Index(fields=["release_date"]),
             models.Index(fields=["vote_average"]),
         ]
-    
+        
 # =====================================================
 # TELEGRAM MOVIES
 # =====================================================
