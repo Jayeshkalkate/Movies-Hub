@@ -61,8 +61,7 @@ from .providers.anilist import (
     get_anilist_client,
     AniListError,
 )
-from ..utils.movie_parser import clean_text
-
+from coremovieshub.utils.movie_parser import clean_text
 logger = logging.getLogger(__name__)
 
 
