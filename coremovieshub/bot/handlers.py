@@ -458,20 +458,19 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     # Use the metadata manager
     manager = get_manager()
     metadata = manager.process_caption(search_text)
+    import pprint
+    pprint.pprint(metadata)
     # ------------------- END FIX -------------------
 
     # If metadata is available, enrich the record; otherwise fall back to defaults
     if metadata:
-        poster = metadata.get("poster")
-        banner = metadata.get("backdrop") or poster
+        # NEW (correct)
         overview = metadata.get("overview") or description
-        rating = metadata.get("rating")
+        poster = metadata.get("poster_url")
+        banner = metadata.get("backdrop_url") or poster
+        rating = metadata.get("vote_average")
         release_date = metadata.get("release_date")
-        tmdb_id = (
-            metadata.get("external_id")
-            if metadata.get("source") == "tmdb"
-            else None
-        )
+        tmdb_id = metadata.get("external_id")
 
         # Use the canonical title from the metadata if present
         if metadata.get("title"):
@@ -508,12 +507,9 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
                 else ""
             )
         ),
-        "duration": (
-            str(media.duration)
-            if getattr(media, "duration", None)
-            else ""
-        ),
-        "file_size_bytes": getattr(media, "file_size", None),
+        
+        "duration": str(metadata.get("runtime", "")) if metadata.get("runtime") else str(media.duration),
+        
     }
 
     movie, created = TelegramMovie.objects.get_or_create(
