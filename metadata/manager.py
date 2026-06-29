@@ -136,40 +136,40 @@ class Manager:
         self.format_jikan_fn = format_jikan_fn
         self.format_anilist_fn = format_anilist_fn
 
-    def _get_caption_variants(self, caption: str) -> List[str]:
+    def _get_caption_variants(self, text: str) -> List[str]:
         """
-        Generate alternative versions of the caption to improve extraction chances.
-        Returns a list of strings, the original caption first.
+        Generate alternative versions of the input text to improve extraction chances.
+        Returns a list of strings, the original text first.
         """
-        variants = [caption]  # always try the original first
+        variants = [text]  # always try the original first
 
         # 1. First line only (often contains the main title)
-        first_line = caption.split('\n')[0].strip()
-        if first_line and first_line != caption:
+        first_line = text.split('\n')[0].strip()
+        if first_line and first_line != text:
             variants.append(first_line)
 
         # 2. Remove common release-group tags (e.g., [WEBRip], [x264], etc.)
-        cleaned = re.sub(r'\[[^\]]+\]', '', caption)  # removes [tag]
+        cleaned = re.sub(r'\[[^\]]+\]', '', text)  # removes [tag]
         cleaned = re.sub(r'\([^)]+\)', '', cleaned)   # removes (tag)
         cleaned = re.sub(r'\{[^}]+\}', '', cleaned)   # removes {tag}
         cleaned = ' '.join(cleaned.split())           # collapse whitespace
-        if cleaned and cleaned != caption:
+        if cleaned and cleaned != text:
             variants.append(cleaned)
 
         # 3. Text before the first year (e.g., "Movie Title 2024" -> "Movie Title")
-        year_match = re.search(r'\b(19|20)\d{2}\b', caption)
+        year_match = re.search(r'\b(19|20)\d{2}\b', text)
         if year_match:
-            before_year = caption[:year_match.start()].strip()
+            before_year = text[:year_match.start()].strip()
             # Also remove trailing punctuation or separators
             before_year = re.sub(r'[:\-–—|•·]+$', '', before_year).strip()
-            if before_year and before_year != caption:
+            if before_year and before_year != text:
                 variants.append(before_year)
 
-        # 4. If the caption is very long, take a substring up to a reasonable length
+        # 4. If the text is very long, take a substring up to a reasonable length
         #    (sometimes the title is at the very beginning)
-        if len(caption) > 80:
-            short = caption[:80].rsplit(' ', 1)[0]  # cut at word boundary
-            if short and short != caption:
+        if len(text) > 80:
+            short = text[:80].rsplit(' ', 1)[0]  # cut at word boundary
+            if short and short != text:
                 variants.append(short)
 
         # Remove duplicates while preserving order
@@ -279,6 +279,8 @@ class Manager:
         Fetch metadata using the configured provider fallback chain.
 
         Tries each provider in order, stops at first success, caches the result.
+        If the fetched result's release year does not match the extracted year,
+        the result is skipped and the next provider is tried.
 
         Args:
             extracted: Extracted content info.
@@ -302,6 +304,18 @@ class Manager:
                 logger.debug(f"Trying provider: {provider}")
                 metadata = self._search_and_format(provider, title, year)
                 if metadata:
+                    # --- START: Year validation (TMDB and others) ---
+                    # If we have an extracted year, ensure the release year matches.
+                    if extracted.year and metadata.get("release_date"):
+                        release_year = metadata["release_date"][:4]
+                        if release_year != str(extracted.year):
+                            logger.debug(
+                                f"Year mismatch for '{title}': extracted {extracted.year}, "
+                                f"got {release_year} from {provider} – skipping"
+                            )
+                            continue  # skip this provider's result, try next
+                    # --- END: Year validation ---
+
                     logger.info(f"Success with provider {provider} for '{title}'")
                     try:
                         self.save_metadata_fn(metadata)
@@ -318,20 +332,28 @@ class Manager:
         logger.warning(f"No provider could find metadata for '{title}'")
         return None
 
-    def process_caption(self, caption: str) -> Optional[Dict[str, Any]]:
+    # --- MODIFIED: Added filename parameter and combined text ---
+    def process_caption(self, caption: str, filename: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Main entry point: process a Telegram caption and return metadata.
+        Main entry point: process a Telegram caption (and optional filename) and return metadata.
 
         Args:
             caption: The raw caption text.
+            filename: Optional filename (e.g., from a torrent or file name) to improve extraction.
 
         Returns:
             Optional[Dict[str, Any]]: The metadata in the common schema, or None if not found.
         """
-        logger.info(f"Processing caption: {caption[:100]}...")
+        # Combine filename and caption if filename is provided
+        if filename:
+            search_text = f"{filename} {caption}".strip()
+            logger.info(f"Processing combined text (filename + caption): {search_text[:100]}...")
+        else:
+            search_text = caption
+            logger.info(f"Processing caption: {caption[:100]}...")
 
-        # Step 1: Try extraction on multiple caption variants
-        variants = self._get_caption_variants(caption)
+        # Step 1: Try extraction on multiple variants of the combined text
+        variants = self._get_caption_variants(search_text)
         extracted = None
         for idx, variant in enumerate(variants):
             try:
@@ -352,9 +374,9 @@ class Manager:
             title = extracted.get("title")
         else:
             title = extracted.title
-            
+
         if not extracted or not title:
-            logger.warning("No title extracted from any caption variant")
+            logger.warning("No title extracted from any text variant")
             return None
 
         # Step 2: Detect content type (used for logging and hinting)
@@ -369,7 +391,6 @@ class Manager:
         try:
             cached = self.find_by_title_fn(
                 title=title,
-                # title=extracted.title,
                 content_type=content_type.value if content_type != ContentType.UNKNOWN else None,
                 year=extracted.year,
             )
@@ -377,7 +398,7 @@ class Manager:
                 logger.info(f"Cache hit for title '{title}'")
                 return cached
             else:
-                logger.info(f"Cache miss for title '{extracted.title}'")
+                logger.info(f"Cache miss for title '{title}'")
         except Exception as e:
             logger.warning(f"Cache lookup by title failed: {e}, proceeding with fetch")
 
@@ -385,11 +406,10 @@ class Manager:
         metadata = self._fetch_and_cache(extracted, content_type)
 
         if metadata:
-            logger.info(f"Successfully retrieved metadata for '{extracted.title}'")
+            logger.info(f"Successfully retrieved metadata for '{title}'")
             return metadata
         else:
             logger.warning(f"No metadata found for '{title}' after all attempts")
-            # logger.warning(f"No metadata found for '{extracted.title}' after all attempts")
             return None
 
 
@@ -411,18 +431,18 @@ if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    # Example caption
+    # Example caption and filename
     caption = "🔥 Pushpa 2 (2024) 1080p WEB-DL Hindi + Telugu"
+    filename = "Pushpa.2.The.Rule.2024.1080p.mkv"   # optional
 
     # Create manager
     manager = get_manager()
 
-    # Process
-    result = manager.process_caption(caption)
+    # Process with both caption and filename
+    result = manager.process_caption(caption, filename=filename)
 
     if result:
         print("Result:", result)
     else:
         print("No metadata found.")
-        
         

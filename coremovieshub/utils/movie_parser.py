@@ -49,6 +49,13 @@ CODEC_PATTERN = re.compile(
 )
 
 # Format tags, release groups, and other noise (extensive list)
+# -------------------------------------------------------------------
+# 1. CONSTANTS – lists of noise to remove
+# -------------------------------------------------------------------
+
+# ... (previous patterns remain the same) ...
+
+# Format tags, release groups, and other noise (extensive list)
 NOISE_TAGS = [
     # Source
     "WEB-DL", "WEBRip", "WEBHD", "HDRip", "BluRay", "BRRip",
@@ -73,7 +80,8 @@ NOISE_TAGS = [
     "JohnWick",         # user reported
     "RIP",              # user reported
     # Other
-    "Complete", "Series", "UNCUT", "EXTENDED", "REMASTERED",
+    "Complete", "Series",
+    # Removed: "UNCUT", "EXTENDED", "REMASTERED" – they are version info and should be preserved
     "PROPER", "REPACK",
     "WEB DL",  # with space
 ]

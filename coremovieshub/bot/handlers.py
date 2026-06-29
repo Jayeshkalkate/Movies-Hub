@@ -414,7 +414,6 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
-
 # ------------------- Channel Post Handler -------------------
 
 @sync_to_async
@@ -424,6 +423,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     All metadata enrichment is delegated to the Manager.
     """
     caption = post.caption or ""
+
     title = extract_title(caption) or extract_title(
         getattr(media, "file_name", "")
     ) or "Untitled Movie"
@@ -441,9 +441,24 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     quality = extract_quality(caption)
     description = clean_caption(caption)
 
-    # Use the metadata manager – it handles extraction, caching, and fallback internally
+    # ------------------- NEW FIX -------------------
+    # Search TMDB using BOTH filename and caption
+    filename = ""
+    if getattr(post, "document", None):
+        filename = post.document.file_name or ""
+    elif getattr(post, "video", None):
+        filename = getattr(post.video, "file_name", "") or ""
+
+    search_text = "\n".join(
+        x.strip()
+        for x in [filename, caption]
+        if x and x.strip()
+    )
+
+    # Use the metadata manager
     manager = get_manager()
-    metadata = manager.process_caption(caption)
+    metadata = manager.process_caption(search_text)
+    # ------------------- END FIX -------------------
 
     # If metadata is available, enrich the record; otherwise fall back to defaults
     if metadata:
@@ -452,7 +467,12 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         overview = metadata.get("overview") or description
         rating = metadata.get("rating")
         release_date = metadata.get("release_date")
-        tmdb_id = metadata.get("external_id") if metadata.get("source") == "tmdb" else None
+        tmdb_id = (
+            metadata.get("external_id")
+            if metadata.get("source") == "tmdb"
+            else None
+        )
+
         # Use the canonical title from the metadata if present
         if metadata.get("title"):
             title = metadata["title"]
@@ -488,7 +508,11 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
                 else ""
             )
         ),
-        "duration": str(media.duration) if getattr(media, "duration", None) else "",
+        "duration": (
+            str(media.duration)
+            if getattr(media, "duration", None)
+            else ""
+        ),
         "file_size_bytes": getattr(media, "file_size", None),
     }
 
@@ -504,7 +528,6 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         logger.info("Movie saved: %s (ID %s)", movie.title, movie.pk)
 
     return movie
-
 
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle new posts in configured channels."""

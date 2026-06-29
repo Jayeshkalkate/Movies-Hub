@@ -45,40 +45,33 @@ class Command(BaseCommand):
             if not metadata:
                 continue
 
-            movie.poster = (
-                metadata.get("poster")
-                or movie.poster
-            )
+            # ---- Preserve existing Telegram data ----
+            # Only set fields that are currently empty
+            if not movie.poster:
+                movie.poster = metadata.get("poster")
             
-            movie.banner = (
-                metadata.get("banner")
-                or movie.banner
-            )
+            if not movie.banner:
+                movie.banner = metadata.get("banner")
             
-            movie.overview = (
-                metadata.get("overview")
-                or movie.overview
-            )
+            if not movie.overview:
+                movie.overview = metadata.get("overview")
             
-            movie.rating = (
-                metadata.get("rating")
-                or movie.rating
-            )
+            if not movie.rating:
+                movie.rating = metadata.get("rating")
             
-            movie.release_date = (
-                metadata.get("release_date")
-                or movie.release_date
-            )
+            if not movie.release_date:
+                movie.release_date = metadata.get("release_date")
             
-            movie.tmdb_id = (
-                metadata.get("tmdb_id")
-                or movie.tmdb_id
-            )
+            if not movie.tmdb_id:
+                movie.tmdb_id = metadata.get("tmdb_id")
             
-            movie.title = clean_title
+            # **** CRITICAL: Do NOT overwrite the original title ****
+            if not movie.title:
+                movie.title = clean_title
 
             movie.save()
 
             self.stdout.write(
                 f"Updated: {movie.title}"
             )
+            
