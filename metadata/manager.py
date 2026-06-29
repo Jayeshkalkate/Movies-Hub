@@ -23,7 +23,7 @@ import logging
 import re
 from difflib import SequenceMatcher
 from typing import Optional, Dict, Any, Callable, List, Tuple
-
+import traceback
 from .extractor import extract, ExtractedContent
 from .tmdb_cache import (
     save_metadata,
@@ -498,9 +498,11 @@ class Manager:
             extracted.content_type = content_type
             logger.info(f"Detected content type: {content_type.value}, "
                         f"subtype: {getattr(extracted, 'subtype', None)}")
-        except Exception as e:
-            logger.error(f"Detection failed: {e}")
-            return None
+        except Exception:
+            logger.exception("Detection failed")
+            traceback.print_exc()
+            raise
+
 
         # Step 4: Check cache
         # Try by telegram_file_id first if provided

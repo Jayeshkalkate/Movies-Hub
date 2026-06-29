@@ -508,7 +508,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
             )
         ),
         
-        "duration": str(metadata.get("runtime", "")) if metadata.get("runtime") else str(media.duration),
+        "duration": str(metadata.get("runtime")) if metadata and metadata.get("runtime") else str(media.duration),
         
     }
 

@@ -4,21 +4,24 @@ Compatibility layer for movie metadata extraction.
 Delegates to the canonical parser in movie_parser.py.
 """
 
-from dataclasses import dataclass
 from typing import Optional, List
 
 from coremovieshub.utils.movie_parser import parse_movie
 
+from dataclasses import dataclass, field
 
 @dataclass
 class ExtractedContent:
-    """Structured result of parsing a movie caption or filename."""
     title: Optional[str] = None
     year: Optional[int] = None
     season: Optional[int] = None
     episode: Optional[int] = None
     quality: Optional[str] = None
-    languages: Optional[List[str]] = None
+    languages: List[str] = field(default_factory=list)
+
+    # NEW
+    subtype: Optional[str] = None
+    content_type: Optional[object] = None
 
 
 def extract(text: str) -> ExtractedContent:
@@ -38,5 +41,6 @@ def extract(text: str) -> ExtractedContent:
         season=data.get("season"),
         episode=data.get("episode"),
         quality=data.get("quality"),
-        languages=data.get("languages"),
+        languages=data.get("languages") or [],
+        subtype=None,
     )
