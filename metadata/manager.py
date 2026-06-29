@@ -221,6 +221,7 @@ class Manager:
         formatted = None
 
         if provider_type == "tmdb_movie":
+            logger.info("Searching TMDB | title=%s | year=%s", title, year)
             raw_response = self.tmdb_client.search_movie(title, year=year)
             results = raw_response.get("results", [])
             if results:
@@ -231,6 +232,7 @@ class Manager:
                 return None
 
         elif provider_type == "tmdb_tv":
+            logger.info("Searching TMDB | title=%s | year=%s", title, year)
             raw_response = self.tmdb_client.search_tv(title, first_air_date_year=year)
             results = raw_response.get("results", [])
             if results:
@@ -418,7 +420,14 @@ class Manager:
         best = max(candidates, key=lambda x: x.get("_score", 0.0))
         best_score = best.get("_score", 0.0)
         best_provider = best.get("_provider", "unknown")
-        logger.info(f"Best result from {best_provider} with score {best_score:.3f}")
+
+        # --- Improved logging after choosing the best match ---
+        logger.info(
+            "Matched TMDB | %s (%s) | score=%s",
+            best.get("title"),
+            best.get("external_id"),
+            best_score,
+        )
 
         # Optional: if best_score is very low, we might still return it,
         # but we could add a threshold if needed.
@@ -428,6 +437,8 @@ class Manager:
             # Add telegram_file_id to metadata for upsert
             if telegram_file_id:
                 best["telegram_file_id"] = telegram_file_id
+            # --- Improved logging before saving ---
+            logger.info("Caching TMDB %s", best.get("external_id"))
             self.save_metadata_fn(best, telegram_file_id=telegram_file_id)
         except Exception as e:
             logger.exception(f"Failed to cache metadata: {e}")

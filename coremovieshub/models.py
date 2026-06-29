@@ -35,7 +35,6 @@ class Category(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
-            
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -63,7 +62,8 @@ class Video(models.Model):
 
     def __str__(self):
         return self.title
-    
+
+
 # =====================================================
 # TELEGRAM MEMBERSHIP VERIFICATION
 # =====================================================
@@ -79,7 +79,7 @@ class MembershipVerification(models.Model):
         blank=True,
         null=True
     )
-    
+
     telegram_username = models.CharField(
         max_length=255,
         blank=True,
@@ -183,6 +183,32 @@ class TMDBMovie(models.Model):
         blank=True,
     )
 
+    # ========== ADDED FIELDS (FIX) ==========
+    original_title = models.CharField(
+        max_length=500,
+        blank=True,
+        default=""
+    )
+
+    original_language = models.CharField(
+        max_length=20,
+        blank=True,
+        default=""
+    )
+
+    runtime = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Runtime in minutes"
+    )
+
+    status = models.CharField(
+        max_length=50,
+        blank=True,
+        default=""
+    )
+    # ========================================
+
     def __str__(self):
         return self.title
 
@@ -208,7 +234,8 @@ class TMDBMovie(models.Model):
             models.Index(fields=["release_date"]),
             models.Index(fields=["vote_average"]),
         ]
-        
+
+
 # =====================================================
 # TELEGRAM MOVIES
 # =====================================================
@@ -330,7 +357,7 @@ class TelegramMovie(models.Model):
         max_length=30,
         blank=True,
     )
-    
+
     file_size_bytes = models.BigIntegerField(
         null=True,
         blank=True,
@@ -359,13 +386,13 @@ class TelegramMovie(models.Model):
         blank=True,
         help_text="Comma separated tags",
     )
-    
+
     tmdb_id = models.IntegerField(
         null=True,
         blank=True,
         db_index=True,
     )
-        
+
     # Statistics
     views = models.PositiveIntegerField(default=0)
 
@@ -401,7 +428,7 @@ class TelegramMovie(models.Model):
                     "channel",
                 ],
                 condition=models.Q(
-                        telegram_message_id__isnull=False
+                    telegram_message_id__isnull=False
                 ),
                 name="unique_channel_message",
             )
@@ -409,35 +436,31 @@ class TelegramMovie(models.Model):
 
     def __str__(self):
         return self.title
-    
+
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.title)[:90] or "movie"
-            
+
             slug = base_slug
             counter = 1
-            
+
             while TelegramMovie.objects.filter(
                 slug=slug
             ).exclude(pk=self.pk).exists():
-                
+
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-                
+
             self.slug = slug
-                
+
         super().save(*args, **kwargs)
-                
 
     @property
     def can_download_from_website(self):
-        
         if self.file_size_bytes is None:
             return False
-            
-        return self.file_size_bytes <= (
-                2 * 1024 * 1024 * 1024
-        )
+        return self.file_size_bytes <= (2 * 1024 * 1024 * 1024)
+
 
 # =====================================================
 # SAVE CHANNEL
@@ -467,6 +490,7 @@ def save_channel_movie(message, channel, **extra_data):
         pass
 
     return movie, created
+
 
 # =====================================================
 # USER WATCHLIST
@@ -516,11 +540,11 @@ class DownloadHistory(models.Model):
 
     def __str__(self):
         return f"{self.user.username} downloaded {self.movie.title}"
-    
+
     class Meta:
         indexes = [
             models.Index(fields=["user"]),
             models.Index(fields=["movie"]),
             models.Index(fields=["downloaded_at"]),
         ]
-    
+        

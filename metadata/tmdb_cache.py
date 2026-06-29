@@ -21,73 +21,8 @@ from typing import Optional, Dict, Any, List
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 
-# ---------------------------------------------------------------------
-# Import your project's models. If they are not available, this module
-# will still work by defining fallback models, but you must run migrations.
-# ---------------------------------------------------------------------
-try:
-    from coremovieshub.models import TMDBMovie
-except ImportError:
-    # Fallback: define a minimal TMDBMovie model (for development/testing)
-    from django.db import models
-
-    class TMDBMovie(models.Model):
-        tmdb_id = models.CharField(max_length=50, unique=True, db_index=True)
-        title = models.CharField(max_length=255)
-        title_normalized = models.CharField(max_length=255, db_index=True)
-        original_title = models.CharField(max_length=255, blank=True)
-        overview = models.TextField(blank=True)
-        poster_path = models.CharField(max_length=255, blank=True)
-        backdrop_path = models.CharField(max_length=255, blank=True)
-        genres = models.CharField(max_length=500, blank=True)  # comma-separated
-        release_date = models.DateField(null=True, blank=True)
-        vote_average = models.FloatField(default=0.0)
-        original_language = models.CharField(max_length=10, blank=True)
-        runtime = models.IntegerField(null=True, blank=True)
-        status = models.CharField(max_length=50, blank=True)
-        created_at = models.DateTimeField(auto_now_add=True)
-        updated_at = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            app_label = "coremovieshub"
-
-        def __str__(self):
-            return f"{self.title} ({self.tmdb_id})"
-
-    logger = logging.getLogger(__name__)
-    logger.warning("TMDBMovie model not found; using fallback definition.")
-
-
-# ---------------------------------------------------------------------
-# Optional TelegramFile model (to link Telegram file IDs to movies)
-# ---------------------------------------------------------------------
-_TelegramFile = None
-try:
-    from coremovieshub.models import TelegramFile as _TelegramFile
-except ImportError:
-    # Define a fallback model (must be migrated if used)
-    from django.db import models
-
-    class TelegramFile(models.Model):
-        telegram_file_id = models.CharField(max_length=255, unique=True, db_index=True)
-        movie = models.ForeignKey(
-            TMDBMovie,
-            on_delete=models.CASCADE,
-            related_name="telegram_files"
-        )
-        created_at = models.DateTimeField(auto_now_add=True)
-        updated_at = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            app_label = "coremovieshub"
-
-        def __str__(self):
-            return f"{self.telegram_file_id} -> {self.movie.title}"
-
-    _TelegramFile = TelegramFile
-    logger = logging.getLogger(__name__)
-    logger.warning("TelegramFile model not found; using fallback definition.")
-
+# Import the real models from your project
+from coremovieshub.models import TMDBMovie, TelegramFile as _TelegramFile
 
 logger = logging.getLogger(__name__)
 
@@ -217,20 +152,35 @@ def save_metadata(
 
     logger.info(f"Saving metadata for tmdb_id={tmdb_id}")
 
-    # Prepare defaults for update_or_create
+    # Build defaults with safe field filtering
+    model_fields = {
+        f.name
+        for f in TMDBMovie._meta.get_fields()
+        if hasattr(f, "attname")
+    }
+
     defaults = {
         "title": title,
         "title_normalized": normalized,
         "poster_path": data.get("poster", ""),
         "backdrop_path": data.get("backdrop", ""),
         "overview": data.get("overview", ""),
-        "genres": ",".join(data.get("genres", [])) if isinstance(data.get("genres"), list) else data.get("genres", ""),
+        "genres": ",".join(data.get("genres", []))
+            if isinstance(data.get("genres"), list)
+            else data.get("genres", ""),
         "release_date": data.get("release_date"),
         "vote_average": data.get("rating", 0.0),
         "original_title": data.get("original_title", ""),
         "original_language": data.get("language", ""),
         "runtime": data.get("runtime"),
         "status": data.get("status", ""),
+    }
+
+    # Keep only fields that actually exist on the model
+    defaults = {
+        k: v
+        for k, v in defaults.items()
+        if k in model_fields
     }
 
     # Create or update the TMDBMovie
@@ -328,4 +278,3 @@ if __name__ == "__main__":
     # result = find_by_title("Inception")
     # print(result)
     pass
-
