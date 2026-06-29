@@ -1,3 +1,4 @@
+# tmdb_cache.py
 """
 Cache layer using TMDBMovie model with optional Telegram file ID deduplication.
 
@@ -8,18 +9,85 @@ This module provides:
     - save_metadata: upsert metadata into TMDBMovie and, if telegram_file_id
                      is provided, link it to the movie via TelegramFile
                      (deduplication)
+    - update_metadata: partial update of an existing record.
 
 All operations are atomic and fully logged.
 """
 
 import logging
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 
-from coremovieshub.models import TMDBMovie
+# ---------------------------------------------------------------------
+# Import your project's models. If they are not available, this module
+# will still work by defining fallback models, but you must run migrations.
+# ---------------------------------------------------------------------
+try:
+    from coremovieshub.models import TMDBMovie
+except ImportError:
+    # Fallback: define a minimal TMDBMovie model (for development/testing)
+    from django.db import models
+
+    class TMDBMovie(models.Model):
+        tmdb_id = models.CharField(max_length=50, unique=True, db_index=True)
+        title = models.CharField(max_length=255)
+        title_normalized = models.CharField(max_length=255, db_index=True)
+        original_title = models.CharField(max_length=255, blank=True)
+        overview = models.TextField(blank=True)
+        poster_path = models.CharField(max_length=255, blank=True)
+        backdrop_path = models.CharField(max_length=255, blank=True)
+        genres = models.CharField(max_length=500, blank=True)  # comma-separated
+        release_date = models.DateField(null=True, blank=True)
+        vote_average = models.FloatField(default=0.0)
+        original_language = models.CharField(max_length=10, blank=True)
+        runtime = models.IntegerField(null=True, blank=True)
+        status = models.CharField(max_length=50, blank=True)
+        created_at = models.DateTimeField(auto_now_add=True)
+        updated_at = models.DateTimeField(auto_now=True)
+
+        class Meta:
+            app_label = "coremovieshub"
+
+        def __str__(self):
+            return f"{self.title} ({self.tmdb_id})"
+
+    logger = logging.getLogger(__name__)
+    logger.warning("TMDBMovie model not found; using fallback definition.")
+
+
+# ---------------------------------------------------------------------
+# Optional TelegramFile model (to link Telegram file IDs to movies)
+# ---------------------------------------------------------------------
+_TelegramFile = None
+try:
+    from coremovieshub.models import TelegramFile as _TelegramFile
+except ImportError:
+    # Define a fallback model (must be migrated if used)
+    from django.db import models
+
+    class TelegramFile(models.Model):
+        telegram_file_id = models.CharField(max_length=255, unique=True, db_index=True)
+        movie = models.ForeignKey(
+            TMDBMovie,
+            on_delete=models.CASCADE,
+            related_name="telegram_files"
+        )
+        created_at = models.DateTimeField(auto_now_add=True)
+        updated_at = models.DateTimeField(auto_now=True)
+
+        class Meta:
+            app_label = "coremovieshub"
+
+        def __str__(self):
+            return f"{self.telegram_file_id} -> {self.movie.title}"
+
+    _TelegramFile = TelegramFile
+    logger = logging.getLogger(__name__)
+    logger.warning("TelegramFile model not found; using fallback definition.")
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,33 +108,6 @@ def normalize_title(title: str) -> str:
     normalized = re.sub(r"[^\w\s]", " ", title.lower())
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
-
-
-# ---------- Optional TelegramFile model ----------
-# If you already have a TelegramFile model (e.g., with telegram_file_id and
-# a foreign key to TMDBMovie), import it here. Otherwise, define a minimal one.
-# We use a dynamic fallback so this file remains self-contained.
-_TelegramFile = None
-try:
-    # Try to import your existing model
-    from coremovieshub.models import TelegramFile as _TelegramFile
-except ImportError:
-    # Fallback: define a dummy model (Django will create the table if migrated)
-    from django.db import models
-
-    class TelegramFile(models.Model):
-        telegram_file_id = models.CharField(max_length=255, unique=True, db_index=True)
-        movie = models.ForeignKey(TMDBMovie, on_delete=models.CASCADE, related_name="telegram_files")
-        created_at = models.DateTimeField(auto_now_add=True)
-        updated_at = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            app_label = "coremovieshub"
-
-        def __str__(self):
-            return f"{self.telegram_file_id} -> {self.movie.title}"
-
-    _TelegramFile = TelegramFile
 
 
 # ---------- Core functions ----------
@@ -102,21 +143,23 @@ def find_by_title(
         return None
 
     logger.info(f"Cache hit: found '{movie.title}' (ID {movie.tmdb_id})")
+
+    # Convert to a unified metadata dict (matches the common schema)
     return {
         "external_id": movie.tmdb_id,
         "source": "tmdb",
         "title": movie.title,
-        "original_title": getattr(movie, "original_title", ""),
+        "original_title": movie.original_title or "",
         "overview": movie.overview or "",
         "poster": movie.poster_path or "",
         "backdrop": movie.backdrop_path or "",
         "genres": movie.genres.split(",") if movie.genres else [],
-        "release_date": movie.release_date,
+        "release_date": movie.release_date.isoformat() if movie.release_date else None,
         "rating": movie.vote_average,
-        "language": getattr(movie, "original_language", ""),
-        "runtime": getattr(movie, "runtime", None),
-        "status": getattr(movie, "status", ""),
-        "content_type": "movie",  # could be inferred, but we set default
+        "language": movie.original_language or "",
+        "runtime": movie.runtime,
+        "status": movie.status or "",
+        "content_type": "movie",  # default; could be extended with a field
         "season_count": None,
         "episode_count": None,
     }
@@ -136,7 +179,8 @@ def find_by_telegram_file_id(telegram_file_id: str) -> Optional[Dict[str, Any]]:
         tg_file = _TelegramFile.objects.get(telegram_file_id=telegram_file_id)
         movie = tg_file.movie
         logger.info(f"Cache hit by telegram_file_id '{telegram_file_id}'")
-        return find_by_title(movie.title)  # reuse conversion
+        # Reuse the conversion logic
+        return find_by_title(movie.title)
     except ObjectDoesNotExist:
         logger.info(f"Cache miss: telegram_file_id '{telegram_file_id}' not found")
         return None
@@ -208,7 +252,6 @@ def save_metadata(
     return find_by_title(movie.title)  # reuse conversion
 
 
-# ---------- Convenience update function ----------
 @transaction.atomic
 def update_metadata(
     tmdb_id: str,
@@ -237,13 +280,23 @@ def update_metadata(
         if key not in ("external_id", "source"):
             if key == "genres" and isinstance(value, list):
                 value = ",".join(value)
-            setattr(movie, key, value)
+            # Map common keys to model fields if needed
+            field_mapping = {
+                "poster": "poster_path",
+                "backdrop": "backdrop_path",
+                "rating": "vote_average",
+                "language": "original_language",
+            }
+            model_field = field_mapping.get(key, key)
+            if hasattr(movie, model_field):
+                setattr(movie, model_field, value)
 
     # Recompute normalized_title if title changed
     if "title" in data and data["title"]:
         movie.title_normalized = normalize_title(data["title"])
 
     movie.save()
+    logger.info(f"Updated movie tmdb_id='{tmdb_id}'")
 
     # Update TelegramFile if provided
     if telegram_file_id:
@@ -252,11 +305,27 @@ def update_metadata(
             defaults={"movie": movie},
         )
 
-    logger.info(f"Updated movie tmdb_id='{tmdb_id}'")
     return find_by_title(movie.title)
 
 
 # ---------- Example usage (for testing) ----------
 if __name__ == "__main__":
-    # This is a placeholder; actual usage would be in a Django environment.
+    # This module is meant to be used within a Django environment.
+    # The following is a placeholder for manual testing.
+    import django
+    django.setup()  # if Django environment is available
+
+    # Example: save some metadata
+    test_data = {
+        "external_id": "12345",
+        "title": "Inception",
+        "release_date": "2010-07-16",
+        "rating": 8.8,
+        "genres": ["Action", "Sci-Fi"],
+        "overview": "A thief who steals corporate secrets...",
+    }
+    # save_metadata(test_data, telegram_file_id="abc123")
+    # result = find_by_title("Inception")
+    # print(result)
     pass
+

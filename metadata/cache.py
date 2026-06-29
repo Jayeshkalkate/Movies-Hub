@@ -9,6 +9,7 @@ It provides:
     - find_by_external_id: retrieve cached content by provider ID and source
     - save_metadata: upsert (create or update) metadata from a dict
     - update_metadata: update an existing record by external_id and source
+    - delete_metadata: delete a cached entry by external_id and source
 
 All operations use database transactions and include comprehensive logging.
 
@@ -19,12 +20,14 @@ The model used is configurable via Django settings:
 
 import logging
 import re
-from typing import Dict, Any, Optional, List, Type
+from datetime import datetime, date
+from typing import Dict, Any, Optional, List, Type, Union
 
 from django.apps import apps
 from django.db import transaction, models
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.conf import settings
+from django.utils.dateparse import parse_date
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -70,13 +73,44 @@ def _normalize_title(title: str) -> str:
     """
     if not title:
         return ""
-    # Lowercase
     normalized = title.lower()
-    # Remove punctuation (keep letters, digits, spaces)
     normalized = re.sub(r"[^\w\s]", " ", normalized)
-    # Collapse multiple spaces
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
+
+
+def _parse_release_date(value: Any) -> Optional[date]:
+    """
+    Parse a release date into a date object.
+
+    Supports: date object, datetime, string in YYYY-MM-DD format, or integer year.
+    Returns None if parsing fails.
+    """
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        # Try common formats
+        parsed = parse_date(value)
+        if parsed:
+            return parsed
+        # Try extracting year only
+        match = re.search(r"(\d{4})", value)
+        if match:
+            year = int(match.group(1))
+            try:
+                return date(year, 1, 1)
+            except ValueError:
+                pass
+    if isinstance(value, int):
+        try:
+            return date(value, 1, 1)
+        except ValueError:
+            pass
+    return None
 
 
 def _model_to_dict(instance: models.Model) -> Dict[str, Any]:
@@ -98,7 +132,11 @@ def _model_to_dict(instance: models.Model) -> Dict[str, Any]:
         "poster": instance.poster,
         "backdrop": instance.backdrop,
         "genres": instance.genres or [],
-        "release_date": instance.release_date,
+        "release_date": (
+            instance.release_date.isoformat()
+            if instance.release_date and hasattr(instance.release_date, "isoformat")
+            else instance.release_date
+        ),
         "rating": instance.rating,
         "language": instance.language,
         "runtime": instance.runtime,
@@ -127,21 +165,23 @@ def find_by_title(
     Returns:
         Optional[Dict[str, Any]]: The cached metadata dict if found, else None.
     """
+    if not title:
+        logger.warning("find_by_title called with empty title")
+        return None
+
     CacheModel = _get_cache_model()
     normalized = _normalize_title(title)
     logger.debug(f"Searching cache for title='{title}' (normalized='{normalized}'), type={content_type}, year={year}")
 
-    # Build queryset – use normalized_title for accurate matching
     queryset = CacheModel.objects.filter(normalized_title=normalized)
 
     if content_type:
         queryset = queryset.filter(content_type=content_type)
 
     if year is not None:
-        # release_date is a DateField or CharField; assume DateField and extract year
+        # release_date must be a DateField for this to work
         queryset = queryset.filter(release_date__year=year)
 
-    # Return the first match (order by rating descending, or latest?)
     instance = queryset.order_by("-rating", "-release_date").first()
 
     if instance:
@@ -163,6 +203,10 @@ def find_by_external_id(external_id: str, source: str) -> Optional[Dict[str, Any
     Returns:
         Optional[Dict[str, Any]]: The cached metadata dict if found, else None.
     """
+    if not external_id or not source:
+        logger.warning("find_by_external_id called with empty external_id or source")
+        return None
+
     CacheModel = _get_cache_model()
     logger.debug(f"Searching cache for external_id='{external_id}', source='{source}'")
 
@@ -193,6 +237,7 @@ def save_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
 
     Raises:
         ValueError: If required fields are missing.
+        ValidationError: If data fails model validation.
     """
     CacheModel = _get_cache_model()
 
@@ -206,26 +251,29 @@ def save_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     source = data["source"]
     title = data["title"]
 
-    # Compute normalized title
     normalized_title = _normalize_title(title)
 
     logger.info(f"Saving metadata: external_id='{external_id}', source='{source}'")
 
-    # Try to get existing record
+    # Prepare fields for the model instance (handle date conversion)
+    model_fields = {k: v for k, v in data.items() if k not in ("external_id", "source")}
+    model_fields["normalized_title"] = normalized_title
+
+    # Convert release_date if present
+    if "release_date" in model_fields:
+        model_fields["release_date"] = _parse_release_date(model_fields["release_date"])
+
     try:
         instance = CacheModel.objects.get(external_id=external_id, source=source)
         logger.debug(f"Updating existing record (ID {instance.pk})")
-        # Update fields (except pk, external_id, source, which are used as lookup)
-        for key, value in data.items():
-            if key not in ("external_id", "source"):
-                setattr(instance, key, value)
-        instance.normalized_title = normalized_title
+        for key, value in model_fields.items():
+            setattr(instance, key, value)
+        instance.full_clean()  # Validate before saving
         instance.save()
     except ObjectDoesNotExist:
         logger.debug(f"Creating new record for external_id='{external_id}', source='{source}'")
-        # Add normalized_title to data before creation
-        data["normalized_title"] = normalized_title
-        instance = CacheModel(**data)
+        instance = CacheModel(**model_fields)
+        instance.full_clean()
         instance.save()
 
     logger.info(f"Metadata saved successfully (ID {instance.pk})")
@@ -253,8 +301,11 @@ def update_metadata(
     Returns:
         Optional[Dict[str, Any]]: The updated metadata dict if updated, else None.
     """
-    CacheModel = _get_cache_model()
+    if not external_id or not source:
+        logger.warning("update_metadata called with empty external_id or source")
+        return None
 
+    CacheModel = _get_cache_model()
     logger.debug(f"Updating metadata: external_id='{external_id}', source='{source}'")
 
     try:
@@ -263,18 +314,59 @@ def update_metadata(
         logger.warning(f"Update failed: no record found for external_id='{external_id}', source='{source}'")
         return None
 
-    # Apply updates (skip external_id and source)
-    for key, value in data.items():
-        if key not in ("external_id", "source"):
-            setattr(instance, key, value)
+    # Prepare update data
+    update_data = {k: v for k, v in data.items() if k not in ("external_id", "source")}
 
-    # Recompute normalized_title if title was updated
-    if "title" in data and data["title"]:
-        instance.normalized_title = _normalize_title(data["title"])
+    # Convert release_date if present
+    if "release_date" in update_data:
+        update_data["release_date"] = _parse_release_date(update_data["release_date"])
 
-    instance.save()
+    if "title" in update_data and update_data["title"]:
+        update_data["normalized_title"] = _normalize_title(update_data["title"])
+
+    for key, value in update_data.items():
+        setattr(instance, key, value)
+
+    try:
+        instance.full_clean()
+        instance.save()
+    except ValidationError as e:
+        logger.error(f"Validation error updating metadata: {e}")
+        raise
+
     logger.info(f"Updated metadata for external_id='{external_id}', source='{source}' (ID {instance.pk})")
     return _model_to_dict(instance)
+
+
+@transaction.atomic
+def delete_metadata(external_id: str, source: str) -> bool:
+    """
+    Delete a cached metadata entry by external_id and source.
+
+    Args:
+        external_id: The provider's unique ID.
+        source: The provider name.
+
+    Returns:
+        bool: True if deletion succeeded (or entry didn't exist), False if error.
+    """
+    if not external_id or not source:
+        logger.warning("delete_metadata called with empty external_id or source")
+        return False
+
+    CacheModel = _get_cache_model()
+    logger.debug(f"Deleting metadata: external_id='{external_id}', source='{source}'")
+
+    try:
+        count, _ = CacheModel.objects.filter(external_id=external_id, source=source).delete()
+        if count:
+            logger.info(f"Deleted metadata for external_id='{external_id}', source='{source}'")
+        else:
+            logger.info(f"No metadata found to delete for external_id='{external_id}', source='{source}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting metadata: {e}")
+        return False
 
 
 # ------------------- Suggested Django Model Definition -------------------
@@ -321,3 +413,4 @@ def update_metadata(
 if __name__ == "__main__":
     # This is a placeholder; actual usage would be in a Django environment.
     pass
+

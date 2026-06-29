@@ -1,3 +1,4 @@
+# manager.py
 """
 Main orchestration manager for content discovery and caching.
 
@@ -21,20 +22,17 @@ All external dependencies are injected via constructor for testability.
 
 import logging
 import re
+import traceback
 from difflib import SequenceMatcher
 from typing import Optional, Dict, Any, Callable, List, Tuple
-import traceback
+
+# ---------------------------------------------------------------------
+# Adjust imports to match your project structure.
+# If any module is missing, define a stub or install the required package.
+# ---------------------------------------------------------------------
 from .extractor import extract, ExtractedContent
-from .tmdb_cache import (
-    save_metadata,
-    find_by_title,
-)
-from .detector import (
-    detect,
-    ContentType,
-    detect_languages,          # NEW
-    parse_episode_info,        # NEW (expose from detector)
-)
+from .tmdb_cache import save_metadata, find_by_title
+from .detector import detect, ContentType, detect_languages
 from .formatter import (
     format_tmdb,
     format_tvmaze,
@@ -61,7 +59,23 @@ from .providers.anilist import (
     get_anilist_client,
     AniListError,
 )
-from coremovieshub.utils.movie_parser import clean_text
+
+# ---------------------------------------------------------------------
+# Fallback for movie_parser.clean_text if not available
+# ---------------------------------------------------------------------
+try:
+    from coremovieshub.utils.movie_parser import clean_text
+except ImportError:
+    def clean_text(text: str) -> str:
+        """Remove extra whitespace, lower-case, and strip common noise."""
+        if not text:
+            return ""
+        # Remove file extensions, replace underscores/dots with spaces
+        cleaned = re.sub(r'\.[a-zA-Z0-9]{2,4}$', '', text)
+        cleaned = re.sub(r'[._]', ' ', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        return cleaned.strip()
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,7 +102,7 @@ class Manager:
         format_anilist_fn: AniList formatter function.
     """
 
-    # Provider order – for iteration (we query all, but order matters for scoring? Not really)
+    # Provider order – we query all, but scoring decides the best.
     PROVIDER_CHAIN = [
         "tmdb_movie",
         "tmdb_tv",
@@ -323,7 +337,6 @@ class Manager:
                 score += 0.05
 
         # 4. Language match (0-0.10)
-        # extracted.languages is a list of detected language codes
         expected_langs = set(extracted.languages or [])
         meta_langs = set(metadata.get("languages") or [])
         if expected_langs and meta_langs:
@@ -456,26 +469,28 @@ class Manager:
         for idx, variant in enumerate(variants):
             try:
                 candidate = self.extractor_fn(variant)
-                if isinstance(candidate, dict):
-                    # Convert dict to ExtractedContent if needed
-                    # (Assuming extractor returns ExtractedContent, but safe)
-                    if not hasattr(candidate, 'title'):
-                        # It's a dict, create a dummy object
-                        class Dummy:
-                            pass
-                        dummy = Dummy()
-                        dummy.title = candidate.get("title")
-                        dummy.year = candidate.get("year")
-                        dummy.season = candidate.get("season")
-                        dummy.episode = candidate.get("episode")
-                        dummy.quality = candidate.get("quality")
-                        dummy.languages = candidate.get("languages")
-                        dummy.subtype = candidate.get("subtype")
-                        candidate = dummy
-                if candidate and candidate.title:
-                    extracted = candidate
-                    logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
-                    break
+                if isinstance(candidate, ExtractedContent):
+                    if candidate.title:
+                        extracted = candidate
+                        logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
+                        break
+                elif isinstance(candidate, dict):
+                    # If the extractor returns a dict, convert to ExtractedContent
+                    # This is a safety net; the default extractor returns ExtractedContent.
+                    # But we handle it gracefully.
+                    if candidate.get("title"):
+                        extracted = ExtractedContent(
+                            title=candidate.get("title"),
+                            year=candidate.get("year"),
+                            season=candidate.get("season"),
+                            episode=candidate.get("episode"),
+                            quality=candidate.get("quality"),
+                            languages=candidate.get("languages") or [],
+                            subtype=candidate.get("subtype"),
+                            content_type=candidate.get("content_type"),
+                        )
+                        logger.debug(f"Extraction succeeded (dict) with variant #{idx}: {variant[:50]}...")
+                        break
             except Exception as e:
                 logger.debug(f"Extraction failed for variant #{idx}: {e}")
                 continue
@@ -500,9 +515,9 @@ class Manager:
                         f"subtype: {getattr(extracted, 'subtype', None)}")
         except Exception:
             logger.exception("Detection failed")
-            traceback.print_exc()
-            raise
-
+            # Fallback to UNKNOWN
+            content_type = ContentType.UNKNOWN
+            extracted.content_type = content_type
 
         # Step 4: Check cache
         # Try by telegram_file_id first if provided
@@ -542,7 +557,6 @@ class Manager:
 
 
 # ------------------- Convenience function -------------------
-
 def get_manager() -> Manager:
     """
     Factory function to get a Manager instance with default dependencies.
@@ -554,7 +568,6 @@ def get_manager() -> Manager:
 
 
 # ------------------- Example usage -------------------
-
 if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -563,7 +576,7 @@ if __name__ == "__main__":
     caption = "🔥 Pushpa 2 (2024) 1080p WEB-DL Hindi + Telugu"
     filename = "Pushpa.2.The.Rule.2024.1080p.mkv"   # optional
 
-    # Create manager
+    # Create manager (ensure all providers are configured)
     manager = get_manager()
 
     # Process with both caption and filename

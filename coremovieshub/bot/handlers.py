@@ -1,3 +1,4 @@
+# handlers.py
 """
 Telegram bot handlers for MoviesHub.
 
@@ -6,25 +7,22 @@ Handles:
 - Membership verification (async)
 - Movie upload conversation (admin only)
 - /search command
-- Automatic channel post processing
+- Automatic channel post processing with full metadata enrichment
 """
 
 import logging
-from typing import Optional, List
+import re
+from typing import Optional, List, Dict, Any
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from coremovieshub.utils.movie_parser import (
-    clean_caption,
-    extract_title,
-    extract_quality,
-    extract_languages,
-    extract_season,
-    extract_year,
-)
+
+# ---------------------------------------------------------------------
+# Import project models and utilities
+# ---------------------------------------------------------------------
 from coremovieshub.models import (
     MembershipVerification,
     Category,
@@ -32,15 +30,58 @@ from coremovieshub.models import (
     TelegramMovie,
 )
 from coremovieshub.telegram_utils import check_telegram_membership
-# from coremovieshub.utils.movie_parser import (
-#     clean_caption,
-#     extract_title,
-#     extract_quality,
-#     extract_languages,
-#     extract_season,
-#     extract_year,
-# )
-from metadata.manager import get_manager
+
+# Import the metadata manager (assumed to be at metadata.manager)
+# If not available, fallback to a dummy manager.
+try:
+    from metadata.manager import get_manager
+except ImportError:
+    # Fallback: define a dummy manager that returns None
+    def get_manager():
+        class DummyManager:
+            def process_caption(self, caption, filename=None, telegram_file_id=None):
+                return None
+        return DummyManager()
+
+# Import movie_parser utilities – fallback to simple regex if missing.
+try:
+    from coremovieshub.utils.movie_parser import (
+        clean_caption,
+        extract_title,
+        extract_quality,
+        extract_languages,
+        extract_season,
+        extract_year,
+    )
+except ImportError:
+    # Fallback implementations
+    def clean_caption(text: str) -> str:
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def extract_title(text: str) -> Optional[str]:
+        # Simple: take first few words or use regex
+        # In production, use proper parser
+        return text.split('\n')[0].strip()
+
+    def extract_quality(text: str) -> Optional[str]:
+        match = re.search(r'\b(480p|720p|1080p|4K|2160p)\b', text, re.I)
+        return match.group(1).upper() if match else None
+
+    def extract_languages(text: str) -> List[str]:
+        # Simple: look for language names
+        langs = []
+        for lang in ['Hindi', 'English', 'Tamil', 'Telugu', 'Malayalam', 'Kannada']:
+            if re.search(rf'\b{lang}\b', text, re.I):
+                langs.append(lang)
+        return langs
+
+    def extract_season(text: str) -> Optional[int]:
+        match = re.search(r'\bS(\d{1,2})\b', text, re.I)
+        return int(match.group(1)) if match else None
+
+    def extract_year(text: str) -> Optional[int]:
+        match = re.search(r'\b(19|20)\d{2}\b', text)
+        return int(match.group()) if match else None
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +91,7 @@ ADMIN_IDS = {
     int(x) for x in getattr(settings, "TELEGRAM_ADMIN_IDS", [])
     if str(x).strip()
 }
-UPLOAD_STATES = range(5)  # TITLE, CATEGORY, YEAR, QUALITY, UPLOAD
+UPLOAD_STATES = range(5)  # TITLE, CATEGORY_STATE, YEAR, QUALITY, UPLOAD
 TITLE, CATEGORY_STATE, YEAR, QUALITY, UPLOAD = UPLOAD_STATES
 
 
@@ -105,6 +146,11 @@ def get_movies_by_title(query: str) -> List[TelegramMovie]:
     )
 
 
+@sync_to_async
+def get_channel_by_chat_id(chat_id: str) -> Optional[TelegramChannel]:
+    return TelegramChannel.objects.select_related("category").filter(chat_id=chat_id).first()
+
+
 # ------------------- Membership Verification -------------------
 
 async def verify_membership(telegram_id: int, verification_code: str = None) -> str:
@@ -121,8 +167,7 @@ async def verify_membership(telegram_id: int, verification_code: str = None) -> 
                 return "invalid_code"
 
             verification.telegram_id = str(telegram_id)
-            if verification.user:
-                verification.telegram_username = f"@{verification.user.username}"
+            # Optionally store username if available
             await sync_to_async(verification.save)()
 
             all_joined = all(
@@ -359,7 +404,7 @@ async def video_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         year=context.user_data.get("year"),
         quality=context.user_data["quality"],
         description=caption,
-        language=extract_languages(caption),
+        language=", ".join(extract_languages(caption)) if extract_languages(caption) else "",
         season=extract_season(caption),
     )
 
@@ -414,21 +459,23 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
+
 # ------------------- Channel Post Handler -------------------
 
 @sync_to_async
 def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     """
     Process a channel post and save movie metadata.
-    All metadata enrichment is delegated to the Manager.
+    Uses the metadata manager for full enrichment.
     """
     caption = post.caption or ""
 
-    title = extract_title(caption) or extract_title(
-        getattr(media, "file_name", "")
-    ) or "Untitled Movie"
-
-    logger.info("Saving movie: %s", title)
+    # Extract basic info from caption
+    title = extract_title(caption) or "Untitled Movie"
+    year = extract_year(caption)
+    quality = extract_quality(caption)
+    description = clean_caption(caption)
+    languages = extract_languages(caption)
 
     # Build message link
     chat_id = str(channel.chat_id)
@@ -436,45 +483,40 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         chat_id = chat_id[4:]
     message_link = f"https://t.me/c/{chat_id}/{post.message_id}"
 
-    # Extract basic info
-    year = extract_year(caption)
-    quality = extract_quality(caption)
-    description = clean_caption(caption)
-
-    # ------------------- NEW FIX -------------------
-    # Search TMDB using BOTH filename and caption
+    # Prepare search text from filename and caption
     filename = ""
-    if getattr(post, "document", None):
+    if hasattr(post, "document") and post.document:
         filename = post.document.file_name or ""
-    elif getattr(post, "video", None):
+    elif hasattr(post, "video") and post.video:
         filename = getattr(post.video, "file_name", "") or ""
 
     search_text = "\n".join(
-        x.strip()
-        for x in [filename, caption]
-        if x and x.strip()
+        x.strip() for x in [filename, caption] if x and x.strip()
     )
 
-    # Use the metadata manager
+    # Use the metadata manager to get enriched data
     manager = get_manager()
-    metadata = manager.process_caption(search_text)
-    import pprint
-    pprint.pprint(metadata)
-    # ------------------- END FIX -------------------
+    try:
+        metadata = manager.process_caption(search_text)
+        logger.info("Metadata enrichment: %s", metadata)
+    except Exception as e:
+        logger.exception("Metadata manager failed: %s", e)
+        metadata = None
 
-    # If metadata is available, enrich the record; otherwise fall back to defaults
+    # Prepare defaults for the movie record
     if metadata:
-        # NEW (correct)
+        # Extract fields from metadata dict
+        enriched_title = metadata.get("title")
+        if enriched_title:
+            title = enriched_title
+
+        poster = metadata.get("poster") or metadata.get("poster_url")
+        banner = metadata.get("backdrop") or metadata.get("backdrop_url") or poster
         overview = metadata.get("overview") or description
-        poster = metadata.get("poster_url")
-        banner = metadata.get("backdrop_url") or poster
-        rating = metadata.get("vote_average")
+        rating = metadata.get("rating") or metadata.get("vote_average")
         release_date = metadata.get("release_date")
         tmdb_id = metadata.get("external_id")
-
-        # Use the canonical title from the metadata if present
-        if metadata.get("title"):
-            title = metadata["title"]
+        runtime = metadata.get("runtime")
     else:
         poster = None
         banner = None
@@ -482,6 +524,22 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         rating = None
         release_date = None
         tmdb_id = None
+        runtime = None
+
+    # Compute file size string
+    file_size_bytes = getattr(media, "file_size", None)
+    if file_size_bytes:
+        if file_size_bytes >= 1024 ** 3:
+            file_size = f"{round(file_size_bytes / (1024 ** 3), 2)} GB"
+        else:
+            file_size = f"{round(file_size_bytes / (1024 ** 2), 2)} MB"
+    else:
+        file_size = ""
+
+    # Duration
+    duration = runtime if runtime else getattr(media, "duration", None)
+    if duration:
+        duration = str(duration)
 
     defaults = {
         "title": title[:255],
@@ -498,20 +556,12 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         "overview": overview,
         "rating": rating,
         "tmdb_id": tmdb_id,
-        "file_size": (
-            f"{round(media.file_size / (1024 ** 3), 2)} GB"
-            if getattr(media, "file_size", None) and media.file_size >= (1024 ** 3)
-            else (
-                f"{round(media.file_size / (1024 ** 2), 2)} MB"
-                if getattr(media, "file_size", None)
-                else ""
-            )
-        ),
-        
-        "duration": str(metadata.get("runtime")) if metadata and metadata.get("runtime") else str(media.duration),
-        
+        "file_size": file_size,
+        "duration": duration,
+        "language": ", ".join(languages) if languages else "",
     }
 
+    # Get or create the movie record
     movie, created = TelegramMovie.objects.get_or_create(
         telegram_message_id=post.message_id,
         channel=channel,
@@ -519,11 +569,16 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     )
 
     if not created:
-        logger.info("Movie already exists: %s", movie.title)
+        # Update existing record with new data if needed
+        for key, value in defaults.items():
+            setattr(movie, key, value)
+        movie.save()
+        logger.info("Movie updated: %s", movie.title)
     else:
         logger.info("Movie saved: %s (ID %s)", movie.title, movie.pk)
 
     return movie
+
 
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle new posts in configured channels."""
@@ -538,11 +593,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     chat_id = str(post.chat.id)
-    channel = await sync_to_async(
-        lambda: TelegramChannel.objects.select_related("category")
-        .filter(chat_id=chat_id)
-        .first()
-    )()
+    channel = await get_channel_by_chat_id(chat_id)
     if not channel:
         logger.warning("Channel not found: %s", chat_id)
         return
@@ -552,3 +603,4 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.info("Movie saved successfully.")
     except Exception:
         logger.exception("Failed to save channel movie.")
+        

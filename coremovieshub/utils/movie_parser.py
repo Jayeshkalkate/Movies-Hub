@@ -1,10 +1,26 @@
 # movie_parser.py
+
+"""
+Movie and TV show caption/filename parser.
+
+This module extracts structured metadata from raw text strings (captions,
+filenames, titles) commonly found in media files. It handles:
+
+- Cleaning: removal of noise (codecs, release groups, sizes, URLs, etc.)
+- Extraction: title, year, season, episode, quality, languages.
+- Korean drama detection (optional).
+- Robust preprocessing for various input formats.
+
+All functions are pure (no external dependencies except standard library).
+"""
+
 import re
 import unicodedata
 import logging
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Any, Set
 
 logger = logging.getLogger(__name__)
+
 
 # -------------------------------------------------------------------
 # 1. CONSTANTS – lists of noise to remove (expanded)
@@ -54,7 +70,7 @@ NOISE_TAGS = [
     # Source
     "WEB-DL", "WEBRip", "WEBHD", "HDRip", "BluRay", "BRRip",
     "BDRip", "DVDRip", "HDTS", "HDTC", "HDCAM", "CAMRip",
-    "CAM", "HC", "Remux", "BDMV",
+    "CAM", "HC", "Remux", "BDMV", "WEB DL",  # with space
     # Resolution / colour
     "10Bit", "8Bit", "HDR", "HDR10", "HDR10+", "DolbyVision",
     # Codec names (already in CODEC_PATTERN, but explicit)
@@ -81,7 +97,6 @@ NOISE_TAGS = [
     "CRiSC", "iMAGiNE", "ROAR", "WAR", "MZ",
     # Other common
     "Complete", "Series", "PROPER", "REPACK", "INTERNAL",
-    "WEB DL",  # with space
     # User-suggested additions
     "cleaned", "s print", "hq print", "hd print", "print",
     "themoviesboss", "vegamovies", "worldfree4u", "hdhub4u",
@@ -96,13 +111,13 @@ NOISE_TAGS = [
     "web", "bluray", "bdrip", "brrip", "dvdrip", "hdtc", "hdcam",
     "camrip", "cam", "hc", "remux",
     "10bit", "8bit", "hdr", "hdr10", "dolbyvision",
-    "x264", "x265", "hevc", "avc", "aac", "ac3", "eac3", "dts",
-    "ddp", "ddp5.1", "5.1", "2ch", "7.1",
     "proper", "repack", "internal", "complete", "series",
     # Additional scene groups
     "ROCCaT", "ViSION", "iNTERNAL", "iNT", "PROPER",
     "REPACK", "REMUX", "RERIP", "RETAIL", "VOD",
     "AMZN", "NF", "DSNP", "HMAX", "HBO", "AppleTV+",
+    # More generic
+    "WEBRip", "WEBDL", "BluRay", "BDRip", "DVDRip",
 ]
 
 # Year pattern (captures 4-digit year)
@@ -128,6 +143,7 @@ LANGUAGE_SET = {
     "multi audio", "dual audio", "multi", "dual",
 }
 
+
 # -------------------------------------------------------------------
 # 2. KOREAN DRAMA DETECTION (unchanged)
 # -------------------------------------------------------------------
@@ -145,14 +161,14 @@ KOREAN_DRAMA_KEYWORDS = {
     "because this is my first life", "misaeng", "my mister", "mother",
 }
 
+
 def is_likely_korean_drama(title: str) -> bool:
+    """Return True if the title matches known Korean drama keywords."""
     if not title:
         return False
     lower = title.lower()
-    for kw in KOREAN_DRAMA_KEYWORDS:
-        if kw in lower:
-            return True
-    return False
+    return any(kw in lower for kw in KOREAN_DRAMA_KEYWORDS)
+
 
 # -------------------------------------------------------------------
 # 3. CLEANING FUNCTION (core)
@@ -162,6 +178,12 @@ def clean_text(text: str) -> str:
     """
     Remove all unwanted tokens: emojis, fancy Unicode, URLs, mentions,
     hashtags, file sizes, bitrates, codecs, and all NOISE_TAGS.
+
+    Args:
+        text: Input string.
+
+    Returns:
+        Cleaned string with noise removed.
     """
     if not text:
         return ""
@@ -182,8 +204,7 @@ def clean_text(text: str) -> str:
     text = CODEC_PATTERN.sub("", text)
     # Remove all noise tags (case‑insensitive, word boundaries)
     for tag in NOISE_TAGS:
-        # Use regex to remove whole phrase (word boundaries on each word)
-        # For multi‑word tags, we treat them as a phrase with spaces.
+        # For multi‑word tags, escape and use word boundaries
         text = re.sub(rf"\b{re.escape(tag)}\b", "", text, flags=re.IGNORECASE)
     # Remove leftover separators like '~', '+', '|', etc.
     text = re.sub(r"\s*[~+|/]\s*", " ", text)
@@ -191,8 +212,9 @@ def clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+
 # -------------------------------------------------------------------
-# 4. EXTRACTION FUNCTIONS (unchanged)
+# 4. EXTRACTION FUNCTIONS
 # -------------------------------------------------------------------
 
 def extract_year(text: str) -> Optional[int]:
@@ -203,6 +225,7 @@ def extract_year(text: str) -> Optional[int]:
     if match:
         return int(match.group(1))
     return None
+
 
 def extract_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
     """Extract season and episode numbers."""
@@ -221,6 +244,7 @@ def extract_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
         return season, episode
     return None, None
 
+
 def extract_quality(text: str) -> Optional[str]:
     """Extract the highest quality (e.g., '1080p', '4K') from text."""
     if not text:
@@ -228,20 +252,27 @@ def extract_quality(text: str) -> Optional[str]:
     matches = QUALITY_PATTERN.findall(text)
     if not matches:
         return None
+
     def parse_res(q: str) -> int:
         q_lower = q.lower()
         if q_lower == "4k":
             return 2160
         if q_lower.endswith("p"):
-            return int(q_lower[:-1])
+            try:
+                return int(q_lower[:-1])
+            except ValueError:
+                return 0
         return 0
+
     return max(matches, key=parse_res)
+
 
 def extract_languages(text: str) -> Optional[List[str]]:
     """Extract language names from text (returns lowercase list)."""
     if not text:
         return None
-    found = set()
+    found: Set[str] = set()
+    # Check for multi/dual audio
     if re.search(r"\b(?:multi|dual)\s+audio\b", text, re.IGNORECASE):
         found.add("multi audio")
     for lang in LANGUAGE_SET:
@@ -251,11 +282,12 @@ def extract_languages(text: str) -> Optional[List[str]]:
             found.add(lang.lower())
     return list(found) if found else None
 
+
 # -------------------------------------------------------------------
 # 5. MAIN PARSER – enhanced with robust preprocessing
 # -------------------------------------------------------------------
 
-def parse_movie(text: str) -> Dict[str, any]:
+def parse_movie(text: str) -> Dict[str, Any]:
     """
     Parse a movie caption/filename and return a dictionary with:
         title (str),
@@ -263,7 +295,17 @@ def parse_movie(text: str) -> Dict[str, any]:
         season (int or None),
         episode (int or None),
         quality (str or None),
-        languages (list[str] or None)
+        languages (list[str] or None),
+        is_korean_drama (bool).
+
+    The function performs a series of cleaning and extraction steps
+    to produce the most accurate metadata possible.
+
+    Args:
+        text: Raw input string.
+
+    Returns:
+        Dict with keys: title, year, season, episode, quality, languages, is_korean_drama.
     """
     if not text:
         return {
@@ -273,6 +315,7 @@ def parse_movie(text: str) -> Dict[str, any]:
             "episode": None,
             "quality": None,
             "languages": None,
+            "is_korean_drama": False,
         }
 
     # ----- STEP 1: Normalize raw input -----
@@ -281,16 +324,15 @@ def parse_movie(text: str) -> Dict[str, any]:
     raw = raw.replace("_", " ").replace(".", " ").replace("-", " ")
     # Remove file extensions
     raw = re.sub(r"\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|m2ts)$", "", raw, flags=re.IGNORECASE)
-    # Remove common prefixes
+    # Remove common prefixes like "File name:-"
     raw = re.sub(r"^file\s*name\s*[:=-]\s*", "", raw, flags=re.IGNORECASE)
+    # Remove "Join @..." messages
     raw = re.sub(r"(?i)join\s*@\S+", "", raw)
-    # Remove trailing "join" messages
     raw = re.sub(r"(?i)\bjoin\b.*", "", raw)
     # Collapse multiple spaces
     raw = re.sub(r"\s+", " ", raw).strip()
 
     # ----- STEP 2: Truncate after the last 4-digit year -----
-    # Find all years in the string; use the last one as the release year.
     year_matches = list(re.finditer(r"\b(19|20)\d{2}\b", raw))
     if year_matches:
         last_year = year_matches[-1]
@@ -310,6 +352,7 @@ def parse_movie(text: str) -> Dict[str, any]:
             "episode": None,
             "quality": None,
             "languages": None,
+            "is_korean_drama": False,
         }
 
     primary_line = lines[0]
@@ -321,14 +364,14 @@ def parse_movie(text: str) -> Dict[str, any]:
     if not cleaned and len(lines) > 1:
         cleaned = clean_text(lines[1])
 
-    # If still empty, fallback to whole text cleaning (but avoid)
+    # If still empty, fallback to whole text cleaning
     if not cleaned:
         cleaned = clean_text(text)
 
     # ----- STEP 5: Extract metadata (order matters) -----
     year = extract_year(cleaned)
     if year is not None:
-        cleaned = re.sub(rf"\(?\b{year}\b\)?", "", cleaned)   # remove year
+        cleaned = re.sub(rf"\(?\b{year}\b\)?", "", cleaned)
 
     season, episode = extract_season_episode(cleaned)
     # Remove season/episode patterns
@@ -362,8 +405,15 @@ def parse_movie(text: str) -> Dict[str, any]:
         if fallback:
             title = fallback
 
+    # Final title cleanup
+    if title:
+        # Remove leading/trailing separators
+        title = re.sub(r"^[\s\-_]+|[\s\-_]+$", "", title)
+        # Capitalize each word (optional, but keep as is)
+        # title = title.title()  # Uncomment if needed
+
     return {
-        "title": title,
+        "title": title or "",
         "year": year,
         "season": season,
         "episode": episode,
@@ -372,20 +422,28 @@ def parse_movie(text: str) -> Dict[str, any]:
         "is_korean_drama": is_likely_korean_drama(title) if title else False,
     }
 
+
 # -------------------------------------------------------------------
 # 6. BACKWARD-COMPATIBLE WRAPPERS
 # -------------------------------------------------------------------
 
 def extract_title(text: str) -> str:
+    """Return the extracted title from text."""
     return parse_movie(text).get("title", "")
 
+
 def extract_season(text: str) -> Optional[int]:
+    """Return extracted season number."""
     return parse_movie(text).get("season")
 
+
 def extract_episode(text: str) -> Optional[int]:
+    """Return extracted episode number."""
     return parse_movie(text).get("episode")
 
+
 def clean_caption(text: str) -> str:
+    """Quick cleaning for captions (remove join messages, mentions)."""
     if not text:
         return ""
     text = re.sub(r"(?i)\bjoin\b.*", "", text)
@@ -393,8 +451,18 @@ def clean_caption(text: str) -> str:
     text = re.sub(r"t\.me/\S+", "", text)
     return text.strip()
 
+
 # -------------------------------------------------------------------
-# 7. EXAMPLE USAGE & TEST
+# 7. BATCH PROCESSING
+# -------------------------------------------------------------------
+
+def parse_many(texts: List[str]) -> List[Dict[str, Any]]:
+    """Parse a list of captions and return a list of result dicts."""
+    return [parse_movie(t) for t in texts]
+
+
+# -------------------------------------------------------------------
+# 8. EXAMPLE USAGE & TEST
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -410,6 +478,9 @@ if __name__ == "__main__":
         "Spider Man Across the Spider Verse RIP AV1 Opus Msubs JohnWick NeoNyx343",
         "The Last of Us S01 E01 E04 COMBINED",
         "One_Piece_Film_Red_2022_Hindi_Cleaned_1080p_S_Print_x264_AAC_themoviesboss",
+        "Kingdom (2019) S02 1080p NF WEB-DL DDP5.1 x264",
+        "Stranger Things S04E01 4K HDR",
+        "The Dark Knight 2008 1080p BluRay x264",
     ]
 
     for cap in test_cases:

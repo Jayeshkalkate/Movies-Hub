@@ -1,3 +1,4 @@
+# tmdb.py
 """
 TMDb API v3 client for movie and TV show searches.
 
@@ -25,7 +26,6 @@ import logging
 import re
 import time
 from typing import Optional, Dict, Any, List, Union, Tuple
-from urllib.parse import urljoin
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -37,24 +37,36 @@ from django.conf import settings
 try:
     from coremovieshub.utils.movie_parser import parse_movie
     PARSER_AVAILABLE = True
-
 except ImportError:
     PARSER_AVAILABLE = False
 
     def parse_movie(text: str) -> Dict[str, Any]:
-        """Fallback parser when movie_parser is unavailable."""
-        text = re.sub(
-            r"\b(?:WEB-DL|WEBRip|BluRay|HDRip|x264|x265|HEVC|DDP|AAC|AC3|DTS)\b",
-            "",
-            text,
-            flags=re.I,
-        )
-        text = re.sub(r"\b(19|20)\d{2}\b", "", text)
-        text = re.sub(r"\s+", " ", text).strip()
+        """
+        Fallback parser when movie_parser is unavailable.
 
+        Cleans common tags, extracts year, and returns a dict.
+        """
+        # Remove common release tags
+        cleaned = re.sub(
+            r'\b(?:WEB-DL|WEBRip|BluRay|HDRip|x264|x265|HEVC|DDP|AAC|AC3|DTS|HDTV|DVD|BDrip)\b',
+            '',
+            text,
+            flags=re.I
+        )
+        # Remove file extensions
+        cleaned = re.sub(r'\.[a-zA-Z0-9]{2,4}$', '', cleaned)
+        # Replace dots/underscores with spaces
+        cleaned = re.sub(r'[._]', ' ', cleaned)
+        # Extract year
+        year_match = re.search(r'\b(19|20)\d{2}\b', cleaned)
+        year = int(year_match.group()) if year_match else None
+        if year:
+            cleaned = re.sub(r'\b(19|20)\d{2}\b', '', cleaned)
+        # Clean up extra spaces and title
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         return {
-            "title": text,
-            "year": None,
+            "title": cleaned,
+            "year": year,
             "season": None,
             "episode": None,
             "quality": None,
@@ -63,6 +75,15 @@ except ImportError:
 
 # Module logger
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "TMDbClient",
+    "TMDbError",
+    "TMDbAuthError",
+    "TMDbNotFound",
+    "TMDbRateLimitError",
+    "get_tmdb_client",
+]
 
 
 # ------------------- Custom Exceptions -------------------
@@ -101,6 +122,7 @@ class TMDbClient:
         base_url (str): Base URL for the TMDb API.
         session (requests.Session): The session used for all requests.
         timeout (int): Request timeout in seconds.
+        max_retries (int): Maximum number of retries.
     """
 
     BASE_URL = "https://api.themoviedb.org/3/"
@@ -163,6 +185,7 @@ class TMDbClient:
             backoff_factor=self.RETRY_BACKOFF_FACTOR,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"],
+            raise_on_status=False,  # We handle status ourselves
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
@@ -200,7 +223,7 @@ class TMDbClient:
             TMDbRateLimitError: On 429 Too Many Requests.
             TMDbError: On other HTTP errors or connection issues.
         """
-        url = urljoin(self.base_url, endpoint)
+        url = self.base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         request_params = {
             "api_key": self.api_key,
             "language": self.language,
@@ -686,6 +709,23 @@ class TMDbClient:
         """Get the trailers and other videos for a TV series."""
         return self._request(f"tv/{tv_id}/videos")
 
+    # ------------------- Image URL Helper -------------------
+
+    def get_image_url(self, path: str, size: str = "w500") -> str:
+        """
+        Build a full image URL from a path.
+
+        Args:
+            path: The relative image path (e.g., "/abc123.jpg").
+            size: The image size (e.g., "w500", "original").
+
+        Returns:
+            str: The full image URL.
+        """
+        if not path:
+            return ""
+        return f"https://image.tmdb.org/t/p/{size}{path}"
+
 
 # ------------------- Helper to get client instance -------------------
 
@@ -705,22 +745,37 @@ def get_tmdb_client() -> TMDbClient:
 # ------------------- Example usage (for testing) -------------------
 
 if __name__ == "__main__":
-    # Simple test (requires Django settings configured or direct API key)
     import sys
 
     # Configure logging to see output
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    # Attempt to get client
+    # Attempt to get client (requires API key in environment or settings)
     try:
-        client = TMDbClient(api_key="your_api_key_here")  # Replace with actual key for testing
+        # For testing, you can pass api_key directly:
+        # client = TMDbClient(api_key="your_api_key_here")
+        client = get_tmdb_client()  # reads from Django settings
+
         # Test with raw caption
-        raw = "Paatal Lok 2020 S01 COMBINED AMZN WEB DL"
+        raw = "Paatal Lok 2020 S01 AMZN WEB DL"
+        print("Testing search_movie_from_text...")
         result = client.search_movie_from_text(raw)
-        print("Search results:", result)
-        # Test get_best
+        print(f"Found {result.get('total_results', 0)} results.")
         best = client.get_best_movie_from_text(raw)
         if best:
             print(f"Best match: {best['title']} ({best.get('release_date', 'N/A')})")
+
+        # Test TV search
+        raw_tv = "The Expanse S01E05 1080p"
+        best_tv = client.get_best_tv_from_text(raw_tv)
+        if best_tv:
+            print(f"Best TV match: {best_tv['name']} ({best_tv.get('first_air_date', 'N/A')})")
+
     except TMDbError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"TMDb error: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+    finally:
+        if 'client' in locals():
+            client.close()
+            

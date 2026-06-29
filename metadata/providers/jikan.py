@@ -1,3 +1,4 @@
+# jikan.py
 """
 Jikan API client for searching and retrieving anime information.
 
@@ -10,7 +11,7 @@ Base URL: https://api.jikan.moe/v4/
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from urllib.parse import urljoin
 
 import requests
@@ -19,6 +20,14 @@ from urllib3.util.retry import Retry
 
 # Module logger
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "JikanClient",
+    "JikanError",
+    "JikanNotFound",
+    "JikanRateLimitError",
+    "get_jikan_client",
+]
 
 
 # ------------------- Custom Exceptions -------------------
@@ -48,6 +57,7 @@ class JikanClient:
         base_url (str): Base URL for the Jikan API.
         session (requests.Session): The session used for all requests.
         timeout (int): Request timeout in seconds.
+        max_retries (int): Maximum number of retries.
     """
 
     BASE_URL = "https://api.jikan.moe/v4/"
@@ -87,6 +97,7 @@ class JikanClient:
             backoff_factor=self.RETRY_BACKOFF_FACTOR,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"],
+            raise_on_status=False,  # We handle status ourselves
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
@@ -136,7 +147,7 @@ class JikanClient:
                 raise JikanRateLimitError("Rate limit exceeded. Please try again later.") from e
             else:
                 logger.error(f"Jikan HTTP error {status_code}: {e}")
-                raise JikanError(f"HTTP error {status_code}: {e.response.text}") from e
+                raise JikanError(f"HTTP error {status_code}: {e.response.text if e.response else ''}") from e
 
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Jikan connection error: {e}")
@@ -155,8 +166,8 @@ class JikanClient:
     def search_anime(
         self,
         title: str,
-        page: Optional[int] = 1,
-        limit: Optional[int] = 25,
+        page: int = 1,
+        limit: int = 25,
         genre: Optional[int] = None,
         status: Optional[str] = None,
         rating: Optional[str] = None,
@@ -188,7 +199,11 @@ class JikanClient:
         Raises:
             JikanError: For any API error.
         """
-        params = {"q": title, "page": page, "limit": min(limit, 25)}  # Jikan max limit is 25
+        params: Dict[str, Any] = {
+            "q": title,
+            "page": page,
+            "limit": min(limit, 25)  # Jikan max limit is 25
+        }
         if genre is not None:
             params["genres"] = genre
         if status:
@@ -242,6 +257,10 @@ class JikanClient:
         params = {"page": page} if page else {}
         return self._request(f"anime/{anime_id}/episodes", params)
 
+    def close(self) -> None:
+        """Close the underlying session."""
+        self.session.close()
+
 
 # ------------------- Helper to get client instance -------------------
 
@@ -260,19 +279,25 @@ def get_jikan_client() -> JikanClient:
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    client = JikanClient()
+    client = get_jikan_client()
     try:
         # Search for Naruto
         results = client.search_anime("Naruto")
-        print(f"Found {results.get('pagination', {}).get('items', {}).get('total', 0)} results.")
+        total = results.get("pagination", {}).get("items", {}).get("total", 0)
+        print(f"Found {total} results.")
         if results.get("data"):
             first = results["data"][0]
             print(f"Top result: {first['title']} (ID: {first['mal_id']})")
 
             # Get anime details
             anime = client.get_anime(first["mal_id"])
-            print(f"Synopsis: {anime.get('synopsis', 'N/A')[:200]}...")
+            synopsis = anime.get("synopsis", "N/A")
+            print(f"Synopsis: {synopsis[:200]}...")
     except JikanError as e:
         print(f"Error: {e}", file=sys.stderr)
+    finally:
+        client.close()
+        
+        

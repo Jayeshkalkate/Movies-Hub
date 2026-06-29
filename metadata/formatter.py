@@ -26,51 +26,81 @@ All functions are pure (no API calls) and safe against missing fields.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+import re
+from typing import Dict, Any, List, Optional, Union, Callable
 
 logger = logging.getLogger(__name__)
 
 
 # ------------------- Helper Functions -------------------
 
-def _safe_get(data: Dict[str, Any], *keys, default=None) -> Any:
-    """Safely navigate nested dictionaries with fallback."""
+def _safe_get(data: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    """
+    Safely navigate nested dictionaries with fallback.
+
+    Args:
+        data: Dictionary to traverse.
+        *keys: Sequence of keys to access.
+        default: Default value if any key is missing or value is None.
+
+    Returns:
+        The value at the nested path, or default if not found.
+    """
+    current = data
     for key in keys:
-        if isinstance(data, dict):
-            data = data.get(key, default)
+        if isinstance(current, dict):
+            current = current.get(key)
+            if current is None:
+                return default
         else:
             return default
-    return data if data is not None else default
+    return current if current is not None else default
 
 
 def _build_genre_list(genres_data: Any) -> List[str]:
-    """Extract genre names from various provider formats."""
+    """
+    Extract genre names from various provider formats.
+
+    Args:
+        genres_data: A list of strings or list of dicts with 'name' key.
+
+    Returns:
+        List[str]: List of genre names.
+    """
     if not genres_data:
         return []
-    # If it's a list of strings
     if isinstance(genres_data, list):
         if all(isinstance(g, str) for g in genres_data):
-            return genres_data
-        # If it's a list of objects with 'name' key
+            return [g for g in genres_data if g]
         if all(isinstance(g, dict) for g in genres_data):
             return [g.get('name', '') for g in genres_data if g.get('name')]
-    # If it's a dict with 'nodes' or similar? Not needed for providers we handle.
+    # If it's a single dict with names? Unlikely.
     return []
 
 
 def _build_date(year: Optional[int], month: Optional[int], day: Optional[int]) -> str:
-    """Build YYYY-MM-DD from components, falling back to year."""
-    if year and month and day:
+    """
+    Build YYYY-MM-DD from components, falling back to year-only string.
+
+    Args:
+        year: Year integer.
+        month: Month integer (1-12).
+        day: Day integer (1-31).
+
+    Returns:
+        str: Formatted date or year string, or empty if nothing provided.
+    """
+    if year is not None and month is not None and day is not None:
         try:
             return f"{year:04d}-{month:02d}-{day:02d}"
-        except ValueError:
+        except (ValueError, TypeError):
             pass
-    if year:
+    if year is not None:
         return str(year)
     return ""
 
 
-def _normalize_rating(rating: Optional[float], scale: int = 10) -> float:
+def _normalize_rating(rating: Optional[Union[int, float]], scale: int = 10) -> float:
     """
     Normalize rating to 0-10 scale.
 
@@ -85,9 +115,18 @@ def _normalize_rating(rating: Optional[float], scale: int = 10) -> float:
         return 0.0
     try:
         val = float(rating)
+        if scale <= 0:
+            return 0.0
         return round(val / scale * 10, 1)
     except (ValueError, TypeError):
         return 0.0
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags from a string using regex."""
+    if not text:
+        return ""
+    return re.sub(r"<[^>]+>", "", text)
 
 
 # ------------------- Provider Formatters -------------------
@@ -106,13 +145,13 @@ def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, 
     is_movie = content_type == "movie"
     source = "tmdb"
 
-    # Common fields
+    # Common fields with safe extraction
     external_id = str(item.get("id", ""))
     title = item.get("title") if is_movie else item.get("name", "")
     original_title = item.get("original_title") if is_movie else item.get("original_name", "")
     overview = item.get("overview", "")
     release_date = item.get("release_date") if is_movie else item.get("first_air_date", "")
-    rating = _normalize_rating(item.get("vote_average", 0.0), scale=10)
+    rating = _normalize_rating(item.get("vote_average"), scale=10)
     language = item.get("original_language", "")
     status = item.get("status", "")
 
@@ -133,23 +172,22 @@ def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, 
         episode_count = None
         season_count = None
     else:
-        runtime = None  # TV shows have episode durations, but we don't have per-episode
+        runtime = None  # TV shows have per-episode runtime, not overall
         season_count = item.get("number_of_seasons")
         episode_count = item.get("number_of_episodes")
 
-    # Content type
     content_type_out = "movie" if is_movie else "tv"
 
     return {
         "external_id": external_id,
         "source": source,
-        "title": title,
-        "original_title": original_title or title,
-        "overview": overview,
+        "title": title or "",
+        "original_title": original_title or title or "",
+        "overview": overview or "",
         "poster": poster,
         "backdrop": backdrop,
         "genres": genres,
-        "release_date": release_date,
+        "release_date": release_date or "",
         "rating": rating,
         "language": language,
         "runtime": runtime,
@@ -180,32 +218,24 @@ def format_tvmaze(item: Dict[str, Any]) -> Dict[str, Any]:
 
     external_id = str(item.get("id", ""))
     title = item.get("name", "")
-    original_title = item.get("name", "")  # TVMaze doesn't have original title
-    overview = item.get("summary", "").strip()
-    # Remove HTML tags from summary (simple)
-    import re
-    overview = re.sub(r"<[^>]+>", "", overview)
+    original_title = title  # TVMaze doesn't have an original title field
+    overview = _strip_html(item.get("summary", ""))
 
-    # Release date
     premiered = item.get("premiered", "")
     release_date = premiered if premiered else ""
 
-    # Rating (average, already 0-10)
     rating_data = item.get("rating", {})
     rating = _normalize_rating(rating_data.get("average"), scale=10)
 
     language = item.get("language", "")
     status = item.get("status", "")
 
-    # Images
     image_data = item.get("image", {})
     poster = image_data.get("original", "") or image_data.get("medium", "")
-    backdrop = ""  # TVMaze does not have a backdrop/background image
+    backdrop = ""  # TVMaze does not have a backdrop
 
-    # Genres
     genres = item.get("genres", [])
 
-    # Runtime
     runtime = item.get("runtime")
 
     # Seasons / episodes: if embedded, we can get count
@@ -213,8 +243,7 @@ def format_tvmaze(item: Dict[str, Any]) -> Dict[str, Any]:
     seasons = embedded.get("seasons", [])
     if seasons and isinstance(seasons, list):
         season_count = len(seasons)
-        # Estimate episode count by summing episodes per season if available
-        episode_count = sum(s.get("episodeOrder", 0) for s in seasons if s.get("episodeOrder"))
+        episode_count = sum(s.get("episodeOrder", 0) for s in seasons if isinstance(s, dict) and s.get("episodeOrder"))
     else:
         season_count = None
         episode_count = None
@@ -258,19 +287,16 @@ def format_jikan(item: Dict[str, Any]) -> Dict[str, Any]:
     original_title = item.get("title_japanese", "") or item.get("title_english", "") or title
 
     synopsis = item.get("synopsis", "")
-    overview = synopsis
+    overview = synopsis or ""
 
-    # Images
     images = item.get("images", {})
     jpg = images.get("jpg", {})
     poster = jpg.get("large_image_url", "") or jpg.get("image_url", "")
-    backdrop = ""  # Jikan doesn't provide a backdrop, only poster
+    backdrop = ""  # Jikan doesn't provide a backdrop
 
-    # Genres
     genres_data = item.get("genres", [])
     genres = _build_genre_list(genres_data)
 
-    # Release date: use aired.from
     aired = item.get("aired", {})
     from_date = aired.get("from")
     if from_date:
@@ -278,43 +304,34 @@ def format_jikan(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         release_date = ""
 
-    # Rating
     score = item.get("score")
     rating = _normalize_rating(score, scale=10)
 
-    # Language - Jikan doesn't provide language; we can leave empty
-    language = ""
+    language = ""  # Jikan doesn't provide language
 
-    # Runtime: duration string like "24 min per ep" - we can parse first number
     duration_str = item.get("duration", "")
     runtime = None
     if duration_str:
-        import re
         match = re.search(r"(\d+)", duration_str)
         if match:
             runtime = int(match.group(1))
 
-    # Status: Jikan uses "Airing", "Finished", "Not yet aired"
     status = item.get("status", "")
 
-    # Content type: from 'type' field: "TV", "Movie", "OVA", etc.
     anime_type = item.get("type", "")
     if anime_type.lower() in ("tv", "tv series", "tv special"):
         content_type_out = "tv"
     elif anime_type.lower() in ("movie", "film"):
         content_type_out = "movie"
     else:
-        # Fallback: if episodes > 1, treat as tv
         episodes = item.get("episodes")
         if episodes is not None and episodes > 1:
             content_type_out = "tv"
         else:
             content_type_out = "movie"
 
-    # Season/episode counts
     if content_type_out == "tv":
         episode_count = item.get("episodes")
-        # Jikan doesn't provide season count; we can leave null
         season_count = None
     else:
         season_count = None
@@ -355,36 +372,28 @@ def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
     external_id = str(item.get("id", ""))
     title_data = item.get("title", {})
     title = title_data.get("romaji", "") or title_data.get("english", "")
-    original_title = title_data.get("native", "") or title_data.get("english", "")
+    original_title = title_data.get("native", "") or title_data.get("english", "") or title
 
     description = item.get("description", "")
-    overview = description
+    overview = _strip_html(description) if description else ""
 
-    # Images
     cover = item.get("coverImage", {})
     poster = cover.get("large", "") or cover.get("medium", "")
     backdrop = item.get("bannerImage", "")
 
-    # Genres
     genres = item.get("genres", [])
 
-    # Release date: from startDate
     start = item.get("startDate", {})
     release_date = _build_date(start.get("year"), start.get("month"), start.get("day"))
 
-    # Rating: averageScore is out of 100
     score = item.get("averageScore")
     rating = _normalize_rating(score, scale=100)
 
-    # Language: countryOfOrigin (ISO code) - e.g., "JP"
     language = item.get("countryOfOrigin", "")
 
-    # Runtime: duration in minutes per episode (for TV) or movie runtime?
     runtime = item.get("duration")
 
-    # Status: AniList uses "FINISHED", "RELEASING", "NOT_YET_RELEASED", etc.
     status_raw = item.get("status", "")
-    # Map to common status strings
     status_map = {
         "FINISHED": "Ended",
         "RELEASING": "Airing",
@@ -394,24 +403,20 @@ def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
     }
     status = status_map.get(status_raw, status_raw)
 
-    # Content type: from format field (TV, MOVIE, OVA, etc.)
     format_type = item.get("format", "")
     if format_type in ("TV", "TV_SHORT", "TV_SPECIAL", "OVA", "ONA", "SPECIAL"):
         content_type_out = "tv"
     elif format_type in ("MOVIE", "FILM"):
         content_type_out = "movie"
     else:
-        # Fallback: if episodes > 1 -> tv, else movie
         episodes = item.get("episodes")
         if episodes is not None and episodes > 1:
             content_type_out = "tv"
         else:
             content_type_out = "movie"
 
-    # Episode and season counts
     if content_type_out == "tv":
         episode_count = item.get("episodes")
-        # AniList doesn't directly provide season count; we can try to infer from relations? Not reliable.
         season_count = None
     else:
         season_count = None
@@ -437,12 +442,43 @@ def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# ------------------- Testing / Example Usage -------------------
+# ------------------- Provider Registry and Auto-Dispatch -------------------
+
+PROVIDER_FORMATTERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    "tmdb": lambda data: format_tmdb(data, data.get("media_type", "movie")),
+    "tvmaze": format_tvmaze,
+    "jikan": format_jikan,
+    "anilist": format_anilist,
+}
+
+
+def format_metadata(source: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Automatically select and apply the appropriate formatter based on source.
+
+    Args:
+        source: Provider name (e.g., 'tmdb', 'tvmaze', 'jikan', 'anilist').
+        data: Raw API response data.
+
+    Returns:
+        Dict[str, Any]: Common metadata schema.
+
+    Raises:
+        ValueError: If the source is not supported.
+    """
+    source_lower = source.lower()
+    formatter = PROVIDER_FORMATTERS.get(source_lower)
+    if not formatter:
+        raise ValueError(f"Unsupported source: {source}. Supported: {list(PROVIDER_FORMATTERS.keys())}")
+    return formatter(data)
+
+
+# ------------------- Example Usage and Testing -------------------
 
 if __name__ == "__main__":
     import json
 
-    # Sample TMDb movie response (simplified)
+    # Sample TMDb movie response
     sample_tmdb_movie = {
         "id": 27205,
         "title": "Inception",
@@ -524,3 +560,9 @@ if __name__ == "__main__":
     formatted = format_anilist(sample_anilist)
     print("\nAniList Media:")
     print(json.dumps(formatted, indent=2))
+
+    # Test auto-dispatch
+    print("\nAuto-dispatch test:")
+    auto = format_metadata("tmdb", sample_tmdb_movie | {"media_type": "movie"})
+    print(json.dumps(auto, indent=2))
+    
