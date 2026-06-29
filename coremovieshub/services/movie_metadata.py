@@ -12,56 +12,85 @@ def search_movie_metadata(title, year=None):
     normalized_title = slugify(title)
     movie = None
 
-    # Helper to compute similarity ratio (case‑insensitive)
     def similarity(a, b):
         return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
-    # 1. Highest priority: exact title + exact year
+    # Helper to score a movie
+    def score_movie(m, search_title, search_year):
+        s = 0.0
+        # Title similarity
+        s += similarity(search_title, m.title) * 0.4
+        # Year match
+        if m.release_date and search_year:
+            if m.release_date.year == search_year:
+                s += 0.3
+            elif abs(m.release_date.year - search_year) <= 1:
+                s += 0.15
+        # Popularity (vote_average normalized to 0-1)
+        if m.vote_average:
+            s += (m.vote_average / 10) * 0.3
+        return s
+
+    # 1. Exact title + year
     if year:
-        movie = (
-            TMDBMovie.objects.filter(
-                title_normalized=normalized_title,
-                release_date__year=year,
-            )
-            .order_by("-vote_average")
-            .first()
-        )
-        print(f"TMDB Exact Title+Year Search: {title} ({year}) -> {movie}")
+        candidates = TMDBMovie.objects.filter(
+            title_normalized=normalized_title,
+            release_date__year=year,
+        ).order_by("-vote_average")
+        if candidates.exists():
+            movie = candidates.first()
+            # Compute score
+            movie._score = score_movie(movie, title, year)
+            print(f"TMDB Exact Title+Year Search: {title} ({year}) -> {movie} score={movie._score:.2f}")
 
-    # 2. Exact title only (if year search failed or no year given)
+    # 2. Exact title only
     if not movie:
-        movie = (
-            TMDBMovie.objects.filter(title_normalized=normalized_title)
-            .order_by("-vote_average")
-            .first()
-        )
-        print(f"TMDB Exact Title Search: {title} ({year}) -> {movie}")
+        candidates = TMDBMovie.objects.filter(
+            title_normalized=normalized_title
+        ).order_by("-vote_average")
+        if candidates.exists():
+            # Pick the one with highest score (including year check)
+            best = None
+            best_score = -1.0
+            for m in candidates:
+                sc = score_movie(m, title, year)
+                if sc > best_score:
+                    best_score = sc
+                    best = m
+            movie = best
+            if movie:
+                movie._score = best_score
+                print(f"TMDB Exact Title Search: {title} ({year}) -> {movie} score={movie._score:.2f}")
 
-    # 3. If still no match, try similarity-based search (≥ 0.9)
+    # 3. Similarity-based (≥0.9) with scoring
     if not movie:
-        # Build a candidate queryset – filter by year if provided, else all
         if year:
             candidates = TMDBMovie.objects.filter(release_date__year=year)
         else:
             candidates = TMDBMovie.objects.all()
 
-        best_match = None
-        best_ratio = 0.0
+        best = None
+        best_score = -1.0
         for candidate in candidates:
-            # Use the original title (not the slug) for comparison
             ratio = similarity(title, candidate.title)
-            if ratio >= 0.9 and ratio > best_ratio:
-                best_ratio = ratio
-                best_match = candidate
+            if ratio >= 0.9:
+                sc = ratio * 0.4 + score_movie(candidate, title, year) * 0.6
+                if sc > best_score:
+                    best_score = sc
+                    best = candidate
+        movie = best
+        if movie:
+            movie._score = best_score
+            print(f"TMDB Similarity Search: {title} ({year}) -> {movie} score={movie._score:.2f}")
 
-        if best_match:
-            movie = best_match
-            print(f"TMDB Similarity Search: {title} ({year}) -> {movie} (ratio={best_ratio:.2f})")
-
-    # 4. If still no movie, reject (no partial/prefix fallback)
     if not movie:
         print(f"TMDB No match found for: {title} ({year})")
         return None
+
+    # Year validation (strict) – keep as before
+    if year and movie.release_date:
+        if movie.release_date.year != year:
+            return None
 
     metadata = {
         "tmdb_id": movie.tmdb_id,
@@ -70,14 +99,7 @@ def search_movie_metadata(title, year=None):
         "overview": movie.overview,
         "rating": movie.vote_average,
         "release_date": movie.release_date,
+        "confidence_score": getattr(movie, '_score', 0.0),   # include score
     }
-
-    # ---- YEAR VALIDATION (strict) ----
-    if year and metadata.get("release_date"):
-        release_year = metadata["release_date"].year
-        if release_year != year:
-            # Mismatch – reject
-            return None
-
     return metadata
 

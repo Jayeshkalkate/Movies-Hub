@@ -6,24 +6,22 @@ fetching layers to deliver a complete metadata pipeline from a Telegram caption.
 
 Workflow:
     1. Extract structured data from caption (title, year, etc.)
-    2. Detect content type (movie, tv, anime, unknown) – used for logging/hints
-    3. Check cache by title (and optionally year/type)
-    4. If cached, return metadata
-    5. Else, query providers in a deterministic fallback chain:
-        - TMDb Movie search
-        - TMDb TV search
-        - TVMaze (TV shows)
-        - AniList (anime)
-        - Jikan (anime)
-    6. Format the raw response into the common schema
-    7. Save to cache
-    8. Return the metadata
+    2. Detect content type (movie, tv, anime, unknown) and augment with
+       episode/season patterns, language hints, and anime subtypes.
+    3. Check cache by title (and optionally year/type and telegram_file_id).
+    4. If cached, return metadata.
+    5. Else, query ALL providers (TMDb Movie, TMDb TV, TVMaze, AniList, Jikan),
+       collect results, compute a confidence score for each, and pick the best.
+    6. Format the raw response into the common schema.
+    7. Save to cache (upsert by telegram_file_id if provided).
+    8. Return the metadata.
 
 All external dependencies are injected via constructor for testability.
 """
 
 import logging
 import re
+from difflib import SequenceMatcher
 from typing import Optional, Dict, Any, Callable, List, Tuple
 
 from .extractor import extract, ExtractedContent
@@ -34,6 +32,8 @@ from .tmdb_cache import (
 from .detector import (
     detect,
     ContentType,
+    detect_languages,          # NEW
+    parse_episode_info,        # NEW (expose from detector)
 )
 from .formatter import (
     format_tmdb,
@@ -61,6 +61,7 @@ from .providers.anilist import (
     get_anilist_client,
     AniListError,
 )
+from ..utils.movie_parser import clean_text
 
 logger = logging.getLogger(__name__)
 
@@ -88,14 +89,13 @@ class Manager:
         format_anilist_fn: AniList formatter function.
     """
 
-    # Provider order – from most likely to least likely,
-    # covering movies, TV, and anime.
+    # Provider order – for iteration (we query all, but order matters for scoring? Not really)
     PROVIDER_CHAIN = [
         "tmdb_movie",
         "tmdb_tv",
-        "tvmaze",
         "anilist",
         "jikan",
+        "tvmaze",
     ]
 
     def __init__(
@@ -136,6 +136,7 @@ class Manager:
         self.format_jikan_fn = format_jikan_fn
         self.format_anilist_fn = format_anilist_fn
 
+    # ---------- Helper: generate text variants ----------
     def _get_caption_variants(self, text: str) -> List[str]:
         """
         Generate alternative versions of the input text to improve extraction chances.
@@ -181,6 +182,7 @@ class Manager:
                 unique_variants.append(v)
         return unique_variants
 
+    # ---------- Query a single provider and format ----------
     def _search_and_format(
         self,
         provider_type: str,
@@ -193,7 +195,7 @@ class Manager:
         Args:
             provider_type: One of 'tmdb_movie', 'tmdb_tv', 'tvmaze',
                            'anilist', 'jikan'.
-            title: Search title.
+            title: Search title (already normalized).
             year: Optional year filter (used where supported).
 
         Returns:
@@ -265,29 +267,99 @@ class Manager:
 
         # Ensure we have a valid result with an external ID
         if formatted and formatted.get("external_id"):
+            # Attach the provider name for scoring
+            formatted["_provider"] = provider_type
             return formatted
         else:
             logger.warning(f"Provider {provider_type} returned incomplete data for '{title}'")
             return None
 
+    # ---------- Confidence scoring ----------
+    def _compute_score(
+        self,
+        metadata: Dict[str, Any],
+        extracted: ExtractedContent,
+        search_title: str,
+    ) -> float:
+        """
+        Compute a confidence score (0-1) for a metadata result.
+
+        Factors:
+            - Title similarity (0.4)
+            - Year match (0.3)
+            - Content type match (0.15)
+            - Language match (0.10)
+            - Popularity / vote average (0.05)
+
+        Returns:
+            float: Score between 0 and 1.
+        """
+        score = 0.0
+
+        # 1. Title similarity (0-0.4)
+        meta_title = metadata.get("title", "")
+        if meta_title:
+            sim = SequenceMatcher(None, search_title.lower(), meta_title.lower()).ratio()
+            score += sim * 0.4
+
+        # 2. Year match (0-0.3)
+        search_year = extracted.year
+        if search_year and metadata.get("release_date"):
+            try:
+                meta_year = int(metadata["release_date"][:4])
+                if meta_year == search_year:
+                    score += 0.3
+                elif abs(meta_year - search_year) <= 1:
+                    score += 0.15
+            except (ValueError, TypeError):
+                pass
+
+        # 3. Content type match (0-0.15)
+        expected_type = getattr(extracted, 'content_type', None)
+        if expected_type and metadata.get("content_type"):
+            if metadata["content_type"] == expected_type.value:
+                score += 0.15
+            # If expected is anime and we got tv, partial
+            elif expected_type == ContentType.ANIME and metadata["content_type"] == "tv":
+                score += 0.05
+
+        # 4. Language match (0-0.10)
+        # extracted.languages is a list of detected language codes
+        expected_langs = set(extracted.languages or [])
+        meta_langs = set(metadata.get("languages") or [])
+        if expected_langs and meta_langs:
+            common = expected_langs & meta_langs
+            if common:
+                score += 0.10 * (len(common) / max(len(expected_langs), len(meta_langs)))
+
+        # 5. Popularity (0-0.05)
+        if metadata.get("vote_average") is not None:
+            try:
+                pop = float(metadata["vote_average"]) / 10.0  # normalize 0-1
+                score += pop * 0.05
+            except (TypeError, ValueError):
+                pass
+
+        logger.debug(f"Score for {metadata.get('_provider')}: {score:.3f}")
+        return score
+
+    # ---------- Fetch from all providers and pick best ----------
     def _fetch_and_cache(
         self,
         extracted: ExtractedContent,
         content_type: ContentType,
+        telegram_file_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetch metadata using the configured provider fallback chain.
-
-        Tries each provider in order, stops at first success, caches the result.
-        If the fetched result's release year does not match the extracted year,
-        the result is skipped and the next provider is tried.
+        Query ALL providers, score results, pick the best, and cache it.
 
         Args:
             extracted: Extracted content info.
-            content_type: Detected content type (used for logging only).
+            content_type: Detected content type (used for logging).
+            telegram_file_id: Optional unique ID for cache upsert.
 
         Returns:
-            Optional[Dict[str, Any]]: Formatted metadata or None.
+            Optional[Dict[str, Any]]: Best metadata or None.
         """
         title = extracted.title
         year = extracted.year
@@ -296,53 +368,80 @@ class Manager:
             logger.warning("Cannot fetch: missing title")
             return None
 
-        logger.info(f"Attempting to fetch '{title}' (detected as {content_type.value}) "
-                    f"using chain: {self.PROVIDER_CHAIN}")
+        # Normalize title for provider searches
+        search_title = clean_text(title)
+        if not search_title:
+            logger.warning(f"Title became empty after normalization, using original '{title}'")
+            search_title = title
+        else:
+            logger.debug(f"Normalized title for search: '{search_title}' (original: '{title}')")
+
+        logger.info(f"Fetching '{title}' (detected as {content_type.value}) "
+                    f"from {len(self.PROVIDER_CHAIN)} providers")
+
+        candidates = []
 
         for provider in self.PROVIDER_CHAIN:
             try:
-                logger.debug(f"Trying provider: {provider}")
-                metadata = self._search_and_format(provider, title, year)
-                if metadata:
-                    # --- START: Year validation (TMDB and others) ---
-                    # If we have an extracted year, ensure the release year matches.
-                    if extracted.year and metadata.get("release_date"):
-                        release_year = metadata["release_date"][:4]
-                        if release_year != str(extracted.year):
-                            logger.debug(
-                                f"Year mismatch for '{title}': extracted {extracted.year}, "
-                                f"got {release_year} from {provider} – skipping"
-                            )
-                            continue  # skip this provider's result, try next
-                    # --- END: Year validation ---
-
-                    logger.info(f"Success with provider {provider} for '{title}'")
-                    try:
-                        self.save_metadata_fn(metadata)
-                    except Exception as e:
-                        logger.exception(f"Failed to cache metadata from {provider}: {e}")
-                    return metadata
+                logger.debug(f"Querying {provider}...")
+                metadata = self._search_and_format(provider, search_title, year)
+                if metadata and metadata.get("external_id"):
+                    # Compute score for this candidate
+                    metadata["_score"] = self._compute_score(metadata, extracted, search_title)
+                    candidates.append(metadata)
+                else:
+                    logger.debug(f"{provider} returned no valid result")
             except (TMDbError, TVMazeError, JikanError, AniListError) as e:
-                logger.warning(f"Provider {provider} failed for '{title}': {e}")
+                logger.warning(f"{provider} failed: {e}")
                 continue
             except Exception as e:
-                logger.error(f"Unexpected error from {provider} for '{title}': {e}")
+                logger.error(f"Unexpected error from {provider}: {e}")
                 continue
 
-        logger.warning(f"No provider could find metadata for '{title}'")
-        return None
+        if not candidates:
+            logger.warning(f"No provider returned data for '{search_title}'")
+            return None
 
-    # --- MODIFIED: Added filename parameter and combined text ---
-    def process_caption(self, caption: str, filename: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        # Pick best by score
+        best = max(candidates, key=lambda x: x.get("_score", 0.0))
+        best_score = best.get("_score", 0.0)
+        best_provider = best.get("_provider", "unknown")
+        logger.info(f"Best result from {best_provider} with score {best_score:.3f}")
+
+        # Optional: if best_score is very low, we might still return it,
+        # but we could add a threshold if needed.
+
+        # Cache it (upsert by telegram_file_id if provided)
+        try:
+            # Add telegram_file_id to metadata for upsert
+            if telegram_file_id:
+                best["telegram_file_id"] = telegram_file_id
+            self.save_metadata_fn(best, telegram_file_id=telegram_file_id)
+        except Exception as e:
+            logger.exception(f"Failed to cache metadata: {e}")
+
+        return best
+
+    # ---------- Main entry point ----------
+    def process_caption(
+        self,
+        caption: str,
+        filename: Optional[str] = None,
+        telegram_file_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Main entry point: process a Telegram caption (and optional filename) and return metadata.
+        Main entry point: process a Telegram caption (and optional filename)
+        and return metadata.
 
         Args:
             caption: The raw caption text.
-            filename: Optional filename (e.g., from a torrent or file name) to improve extraction.
+            filename: Optional filename (e.g., from a torrent or file name)
+                      to improve extraction.
+            telegram_file_id: Optional unique ID from Telegram for cache upsert.
 
         Returns:
-            Optional[Dict[str, Any]]: The metadata in the common schema, or None if not found.
+            Optional[Dict[str, Any]]: The metadata in the common schema,
+                                      or None if not found.
         """
         # Combine filename and caption if filename is provided
         if filename:
@@ -352,17 +451,29 @@ class Manager:
             search_text = caption
             logger.info(f"Processing caption: {caption[:100]}...")
 
-        # Step 1: Try extraction on multiple variants of the combined text
+        # Step 1: Try extraction on multiple variants
         variants = self._get_caption_variants(search_text)
         extracted = None
         for idx, variant in enumerate(variants):
             try:
                 candidate = self.extractor_fn(variant)
                 if isinstance(candidate, dict):
-                    title = candidate.get("title")
-                else:
-                    title = candidate.title
-                if title:
+                    # Convert dict to ExtractedContent if needed
+                    # (Assuming extractor returns ExtractedContent, but safe)
+                    if not hasattr(candidate, 'title'):
+                        # It's a dict, create a dummy object
+                        class Dummy:
+                            pass
+                        dummy = Dummy()
+                        dummy.title = candidate.get("title")
+                        dummy.year = candidate.get("year")
+                        dummy.season = candidate.get("season")
+                        dummy.episode = candidate.get("episode")
+                        dummy.quality = candidate.get("quality")
+                        dummy.languages = candidate.get("languages")
+                        dummy.subtype = candidate.get("subtype")
+                        candidate = dummy
+                if candidate and candidate.title:
                     extracted = candidate
                     logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
                     break
@@ -370,46 +481,62 @@ class Manager:
                 logger.debug(f"Extraction failed for variant #{idx}: {e}")
                 continue
 
-        if isinstance(extracted, dict):
-            title = extracted.get("title")
-        else:
-            title = extracted.title
-
-        if not extracted or not title:
+        if not extracted or not extracted.title:
             logger.warning("No title extracted from any text variant")
             return None
 
-        # Step 2: Detect content type (used for logging and hinting)
+        # Step 2: Enhance with language detection from the full search_text
+        if not extracted.languages:
+            langs = detect_languages(search_text)
+            if langs:
+                extracted.languages = langs
+                logger.debug(f"Detected languages from text: {langs}")
+
+        # Step 3: Detect content type (will also parse episode/season and subtype)
         try:
             content_type = self.detector_fn(extracted)
-            logger.info(f"Detected content type: {content_type.value}")
+            # Store type on extracted for scoring
+            extracted.content_type = content_type
+            logger.info(f"Detected content type: {content_type.value}, "
+                        f"subtype: {getattr(extracted, 'subtype', None)}")
         except Exception as e:
             logger.error(f"Detection failed: {e}")
             return None
 
-        # Step 3: Check cache by title and year (if available)
+        # Step 4: Check cache
+        # Try by telegram_file_id first if provided
+        if telegram_file_id and self.find_by_external_id_fn:
+            try:
+                cached = self.find_by_external_id_fn(telegram_file_id)
+                if cached:
+                    logger.info(f"Cache hit by telegram_file_id '{telegram_file_id}'")
+                    return cached
+            except Exception as e:
+                logger.warning(f"Cache lookup by telegram_file_id failed: {e}")
+
+        # Then by title/year/type
         try:
             cached = self.find_by_title_fn(
-                title=title,
+                title=extracted.title,
                 content_type=content_type.value if content_type != ContentType.UNKNOWN else None,
                 year=extracted.year,
             )
             if cached:
-                logger.info(f"Cache hit for title '{title}'")
+                logger.info(f"Cache hit for title '{extracted.title}'")
                 return cached
             else:
-                logger.info(f"Cache miss for title '{title}'")
+                logger.info(f"Cache miss for title '{extracted.title}'")
         except Exception as e:
             logger.warning(f"Cache lookup by title failed: {e}, proceeding with fetch")
 
-        # Step 4: Fetch from providers using the fallback chain
-        metadata = self._fetch_and_cache(extracted, content_type)
+        # Step 5: Fetch from providers (with scoring)
+        metadata = self._fetch_and_cache(extracted, content_type, telegram_file_id)
 
         if metadata:
-            logger.info(f"Successfully retrieved metadata for '{title}'")
+            logger.info(f"Successfully retrieved metadata for '{extracted.title}'")
             return metadata
         else:
-            logger.warning(f"No metadata found for '{title}' after all attempts")
+            logger.warning(f"No metadata found for '{extracted.title}' after all attempts")
             return None
 
 

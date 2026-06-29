@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple, Dict
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
-# 1. CONSTANTS – lists of noise to remove
+# 1. CONSTANTS – lists of noise to remove (expanded)
 # -------------------------------------------------------------------
 
 # Emojis and fancy symbols
@@ -41,49 +41,68 @@ HASHTAG_PATTERN = re.compile(r"#\S+")
 FILESIZE_PATTERN = re.compile(r"\b\d+(\.\d+)?\s*(GB|MB|KB|TB)\b", re.IGNORECASE)
 BITRATE_PATTERN = re.compile(r"\b\d+(\.\d+)?\s*(Kbps|Mbps)\b", re.IGNORECASE)
 
-# Codecs (video, audio, container) – expanded
+# Codecs (video, audio, container) – expanded with common variants
 CODEC_PATTERN = re.compile(
     r"\b(x264|x265|HEVC|H\.?264|H\.?265|AVC|MP4|MKV|AVI|"
-    r"DDP\s*5\s*\.?\s*1|DDP|Opus|AV1|AAC|AC3|EAC3|DTS)\b",
+    r"DDP\s*5\s*\.?\s*1|DDP|Opus|AV1|AAC|AC3|EAC3|DTS|"
+    r"MPEG|DivX|XviD|WMV|FLV|WEBM|M4V|M2TS|TS)\b",
     re.IGNORECASE,
 )
 
-# Format tags, release groups, and other noise (extensive list)
-# -------------------------------------------------------------------
-# 1. CONSTANTS – lists of noise to remove
-# -------------------------------------------------------------------
-
-# ... (previous patterns remain the same) ...
-
-# Format tags, release groups, and other noise (extensive list)
+# Format tags, release groups, and other noise – massively expanded
 NOISE_TAGS = [
     # Source
     "WEB-DL", "WEBRip", "WEBHD", "HDRip", "BluRay", "BRRip",
     "BDRip", "DVDRip", "HDTS", "HDTC", "HDCAM", "CAMRip",
-    "CAM", "HC", "Remux",
+    "CAM", "HC", "Remux", "BDMV",
     # Resolution / colour
-    "10Bit", "8Bit", "HDR", "HDR10", "HDR10+",
-    # Codec names (already in CODEC_PATTERN, but adding explicit)
+    "10Bit", "8Bit", "HDR", "HDR10", "HDR10+", "DolbyVision",
+    # Codec names (already in CODEC_PATTERN, but explicit)
     "x264", "x265", "HEVC", "H.264", "H.265", "AVC",
     "AV1", "Opus", "AAC", "AC3", "EAC3", "DTS",
     # Audio flags
     "DDP5.1", "DDP", "DD5.1", "TrueHD", "Atmos", "Dolby",
-    "2CH", "5.1",
+    "2CH", "5.1", "7.1", "6CH", "8CH",
     # Language flags
     "Dual Audio", "Multi Audio", "MultiAudio", "ORG",
-    "Dubbed", "ESub", "ESubs", "MSubs",
+    "Dubbed", "ESub", "ESubs", "MSubs", "Subs", "Subbed",
     # Service / platform
-    "AMZN", "NF", "DSNP", "COMBINED", "CR",
+    "AMZN", "NF", "DSNP", "COMBINED", "CR", "HMAX", "HBO", "AppleTV",
     # Release groups (common)
     "GOGETA", "NeoNyx343", "SiN", "L0E", "RARBG",
     "GalaxyRG", "YTS", "PSA", "AM", "Immortal", "Godfather",
-    "JohnWick",         # user reported
-    "RIP",              # user reported
-    # Other
-    "Complete", "Series",
-    # Removed: "UNCUT", "EXTENDED", "REMASTERED" – they are version info and should be preserved
-    "PROPER", "REPACK",
+    "JohnWick", "RIP", "EVO", "NTG", "MkvCage", "MkvKing",
+    "AniDL", "SubsPlease", "Erai-raws", "ASAP", "Xclusive",
+    "Kings", "Bone", "Telly", "HDTV", "MIRCrew", "iNTENSO",
+    "FGT", "SiGMA", "KiNGDOM", "SPARKS", "DIMENSION", "ETHiCS",
+    "ViSiON", "iON", "LiNE", "NGB", "ORPHEUS", "LiBRARiANS",
+    "Chameleon", "SVA", "MZABI", "HANDJOB", "BATV", "D-Z0N3",
+    "Framestor", "ESiR", "CtrlHD", "DON", "HiDt", "PTP",
+    "CRiSC", "iMAGiNE", "ROAR", "WAR", "MZ",
+    # Other common
+    "Complete", "Series", "PROPER", "REPACK", "INTERNAL",
     "WEB DL",  # with space
+    # User-suggested additions
+    "cleaned", "s print", "hq print", "hd print", "print",
+    "themoviesboss", "vegamovies", "worldfree4u", "hdhub4u",
+    "mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v", "m2ts",
+    "hdcam", "hq", "hevc", "avc", "aac", "ac3", "eac3", "dts",
+    "ddp", "ddp5.1", "5.1", "2ch", "7.1",
+    "english", "hindi", "tamil", "telugu", "malayalam", "kannada",
+    "bengali", "marathi", "gujarati", "punjabi", "urdu",
+    "spanish", "french", "german", "chinese", "japanese", "korean",
+    "russian", "arabic", "portuguese", "indonesian", "thai",
+    "vietnamese", "dual", "multi", "org", "dubbed", "subs",
+    "web", "bluray", "bdrip", "brrip", "dvdrip", "hdtc", "hdcam",
+    "camrip", "cam", "hc", "remux",
+    "10bit", "8bit", "hdr", "hdr10", "dolbyvision",
+    "x264", "x265", "hevc", "avc", "aac", "ac3", "eac3", "dts",
+    "ddp", "ddp5.1", "5.1", "2ch", "7.1",
+    "proper", "repack", "internal", "complete", "series",
+    # Additional scene groups
+    "ROCCaT", "ViSION", "iNTERNAL", "iNT", "PROPER",
+    "REPACK", "REMUX", "RERIP", "RETAIL", "VOD",
+    "AMZN", "NF", "DSNP", "HMAX", "HBO", "AppleTV+",
 ]
 
 # Year pattern (captures 4-digit year)
@@ -110,7 +129,7 @@ LANGUAGE_SET = {
 }
 
 # -------------------------------------------------------------------
-# 2. KOREAN DRAMA DETECTION (helper for detector)
+# 2. KOREAN DRAMA DETECTION (unchanged)
 # -------------------------------------------------------------------
 
 KOREAN_DRAMA_KEYWORDS = {
@@ -127,7 +146,6 @@ KOREAN_DRAMA_KEYWORDS = {
 }
 
 def is_likely_korean_drama(title: str) -> bool:
-    """Heuristic to detect Korean dramas based on keywords."""
     if not title:
         return False
     lower = title.lower()
@@ -164,6 +182,8 @@ def clean_text(text: str) -> str:
     text = CODEC_PATTERN.sub("", text)
     # Remove all noise tags (case‑insensitive, word boundaries)
     for tag in NOISE_TAGS:
+        # Use regex to remove whole phrase (word boundaries on each word)
+        # For multi‑word tags, we treat them as a phrase with spaces.
         text = re.sub(rf"\b{re.escape(tag)}\b", "", text, flags=re.IGNORECASE)
     # Remove leftover separators like '~', '+', '|', etc.
     text = re.sub(r"\s*[~+|/]\s*", " ", text)
@@ -172,7 +192,7 @@ def clean_text(text: str) -> str:
     return text
 
 # -------------------------------------------------------------------
-# 4. EXTRACTION FUNCTIONS
+# 4. EXTRACTION FUNCTIONS (unchanged)
 # -------------------------------------------------------------------
 
 def extract_year(text: str) -> Optional[int]:
@@ -185,30 +205,20 @@ def extract_year(text: str) -> Optional[int]:
     return None
 
 def extract_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
-    """
-    Extract season and episode numbers.
-    Returns (season, episode) – either can be None.
-    """
+    """Extract season and episode numbers."""
     if not text:
         return None, None
-
-    # Try compact S01E05
     match = SEASON_EP_COMPACT.search(text)
     if match:
         return int(match.group(1)), int(match.group(2))
-
-    # Try Season X Episode Y
     match = SEASON_EP_WORDS.search(text)
     if match:
         return int(match.group(1)), int(match.group(2))
-
-    # Try generic S/E pattern
     match = SEASON_EP_PATTERN.search(text)
     if match:
         season = int(match.group(1)) if match.group(1) else None
         episode = int(match.group(2)) if match.group(2) else None
         return season, episode
-
     return None, None
 
 def extract_quality(text: str) -> Optional[str]:
@@ -218,7 +228,6 @@ def extract_quality(text: str) -> Optional[str]:
     matches = QUALITY_PATTERN.findall(text)
     if not matches:
         return None
-    # Return the best (by numeric resolution)
     def parse_res(q: str) -> int:
         q_lower = q.lower()
         if q_lower == "4k":
@@ -233,7 +242,6 @@ def extract_languages(text: str) -> Optional[List[str]]:
     if not text:
         return None
     found = set()
-    # Detect multi/dual audio phrases
     if re.search(r"\b(?:multi|dual)\s+audio\b", text, re.IGNORECASE):
         found.add("multi audio")
     for lang in LANGUAGE_SET:
@@ -244,7 +252,7 @@ def extract_languages(text: str) -> Optional[List[str]]:
     return list(found) if found else None
 
 # -------------------------------------------------------------------
-# 5. MAIN PARSER – focus on the first meaningful line
+# 5. MAIN PARSER – enhanced with robust preprocessing
 # -------------------------------------------------------------------
 
 def parse_movie(text: str) -> Dict[str, any]:
@@ -267,7 +275,32 @@ def parse_movie(text: str) -> Dict[str, any]:
             "languages": None,
         }
 
-    # Split into lines and take the first non-empty line as the primary source
+    # ----- STEP 1: Normalize raw input -----
+    raw = text
+    # Replace common separators with spaces
+    raw = raw.replace("_", " ").replace(".", " ").replace("-", " ")
+    # Remove file extensions
+    raw = re.sub(r"\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|m2ts)$", "", raw, flags=re.IGNORECASE)
+    # Remove common prefixes
+    raw = re.sub(r"^file\s*name\s*[:=-]\s*", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"(?i)join\s*@\S+", "", raw)
+    # Remove trailing "join" messages
+    raw = re.sub(r"(?i)\bjoin\b.*", "", raw)
+    # Collapse multiple spaces
+    raw = re.sub(r"\s+", " ", raw).strip()
+
+    # ----- STEP 2: Truncate after the last 4-digit year -----
+    # Find all years in the string; use the last one as the release year.
+    year_matches = list(re.finditer(r"\b(19|20)\d{2}\b", raw))
+    if year_matches:
+        last_year = year_matches[-1]
+        # Keep everything up to and including that year
+        raw = raw[:last_year.end()]
+
+    # Now use this normalized text as the primary input
+    text = raw
+
+    # ----- STEP 3: Split into lines and take the first non-empty line -----
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return {
@@ -279,30 +312,28 @@ def parse_movie(text: str) -> Dict[str, any]:
             "languages": None,
         }
 
-    primary_line = lines[0]  # use the first line
+    primary_line = lines[0]
 
-    # Step 1: clean the primary line (remove all noise)
+    # ----- STEP 4: Clean the primary line (remove noise) -----
     cleaned = clean_text(primary_line)
 
-    # If after cleaning the line becomes empty, try the next lines
+    # If cleaning emptied the line, try the next line
     if not cleaned and len(lines) > 1:
-        # Possibly the first line was only noise, use second line
         cleaned = clean_text(lines[1])
 
-    # If still empty, fallback to whole text cleaning (but try to avoid)
+    # If still empty, fallback to whole text cleaning (but avoid)
     if not cleaned:
         cleaned = clean_text(text)
 
-    # Step 2: extract metadata (the order matters: we remove after extracting)
+    # ----- STEP 5: Extract metadata (order matters) -----
     year = extract_year(cleaned)
     if year is not None:
         cleaned = re.sub(rf"\(?\b{year}\b\)?", "", cleaned)   # remove year
 
     season, episode = extract_season_episode(cleaned)
-    # Remove any season/episode patterns completely (including multiple episodes)
-    cleaned = re.sub(r'\b[Ss]\d+\b', '', cleaned)      # removes S01, S1, etc.
-    cleaned = re.sub(r'\b[Ee]\d+\b', '', cleaned)      # removes E01, E1, etc.
-    # Also remove combined S01E01 patterns if any remained
+    # Remove season/episode patterns
+    cleaned = re.sub(r'\b[Ss]\d+\b', '', cleaned)
+    cleaned = re.sub(r'\b[Ee]\d+\b', '', cleaned)
     cleaned = re.sub(r'(?i)s\d+e\d+', '', cleaned)
 
     quality = extract_quality(cleaned)
@@ -314,19 +345,16 @@ def parse_movie(text: str) -> Dict[str, any]:
         for lang in languages:
             cleaned = re.sub(rf"\b{re.escape(lang)}\b", "", cleaned, flags=re.IGNORECASE)
 
-    # Step 3: the remainder is the title
+    # ----- STEP 6: The remainder is the title -----
     # Remove leftover separators and collapse spaces
     cleaned = re.sub(r"\s*[~+|/]\s*", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     title = cleaned if cleaned else None
 
-    # Additional check: if title is None but we had a primary line, use that (but cleaned)
+    # Fallback: if title is empty, strip bracketed content aggressively
     if not title and primary_line:
-        # attempt to clean more aggressively: remove year, season, etc.
-        # But we already did that; maybe the line was all noise.
-        # Fallback: take the primary line and strip common prefixes
         fallback = primary_line
-        # Remove any parenthesized content that might be metadata
+        # Remove parenthesized/bracketed content
         fallback = re.sub(r"\([^)]*\)", "", fallback)
         fallback = re.sub(r"\[[^)]*\]", "", fallback)
         fallback = re.sub(r"\{[^)]*\}", "", fallback)
@@ -345,23 +373,19 @@ def parse_movie(text: str) -> Dict[str, any]:
     }
 
 # -------------------------------------------------------------------
-# 6. BACKWARD-COMPATIBLE WRAPPERS (optional)
+# 6. BACKWARD-COMPATIBLE WRAPPERS
 # -------------------------------------------------------------------
 
 def extract_title(text: str) -> str:
-    """Return just the cleaned title."""
     return parse_movie(text).get("title", "")
 
 def extract_season(text: str) -> Optional[int]:
-    """Return season number (or None)."""
     return parse_movie(text).get("season")
 
 def extract_episode(text: str) -> Optional[int]:
-    """Return episode number (or None)."""
     return parse_movie(text).get("episode")
 
 def clean_caption(text: str) -> str:
-    """Legacy: remove join, @, t.me – now handled by clean_text."""
     if not text:
         return ""
     text = re.sub(r"(?i)\bjoin\b.*", "", text)
@@ -370,11 +394,12 @@ def clean_caption(text: str) -> str:
     return text.strip()
 
 # -------------------------------------------------------------------
-# 7. EXAMPLE USAGE
+# 7. EXAMPLE USAGE & TEST
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
     test_cases = [
+        "One_Piece_Film_Red_2022_Hindi_Cleaned_1080p_S_Print_x264_AAC_themoviesboss.mkv",
         "Paatal Lok 2020 S01 COMBINED AMZN WEB DL",
         "Pirates Of The Caribbean Dead Men Tell No Tales 2017 720p 10Bit English Hindi mkv",
         "File name:- Inception 2010 720p HDRip",
@@ -384,9 +409,11 @@ if __name__ == "__main__":
         "Join @MoviesHub\nPushpa 2 (2024) 1080p Hindi",
         "Spider Man Across the Spider Verse RIP AV1 Opus Msubs JohnWick NeoNyx343",
         "The Last of Us S01 E01 E04 COMBINED",
+        "One_Piece_Film_Red_2022_Hindi_Cleaned_1080p_S_Print_x264_AAC_themoviesboss",
     ]
 
     for cap in test_cases:
         result = parse_movie(cap)
-        print(f"Input: {cap[:60]}...")
+        print(f"Input: {cap[:80]}...")
         print(f"  -> {result}\n")
+        
