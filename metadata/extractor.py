@@ -7,19 +7,12 @@ Self-contained parser with full support for filenames and captions.
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, List
-from enum import Enum
+
 from coremovieshub.utils.movie_parser import parse_movie
 
 # ---------- Logging ----------
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-
-# ---------- Enums for content type ----------
-class ContentType(Enum):
-    MOVIE = "movie"
-    TV = "tv"
-    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -31,11 +24,6 @@ class ExtractedContent:
     quality: Optional[str] = None
     languages: List[str] = field(default_factory=list)
 
-    # NEW fields
-    subtype: Optional[str] = None          # e.g., "trailer", "clip", "feature"
-    content_type: Optional[ContentType] = None
-
-
 
 # ---------- Public API ----------
 def extract(text: str) -> ExtractedContent:
@@ -46,7 +34,7 @@ def extract(text: str) -> ExtractedContent:
         text: Raw caption or filename string.
 
     Returns:
-        ExtractedContent object with title, year, season, etc.
+        ExtractedContent object with title, year, season, episode, quality, languages.
     """
     data = parse_movie(text)
     return ExtractedContent(
@@ -72,6 +60,8 @@ if __name__ == "__main__":
         ("Avatar (2009)", "Movie only"),
         ("Some.Show.Without.Year.S03E04", "TV without year"),
         ("RandomFile.mkv", "Fallback: just title"),
+        ("File name:- Guardians of the Galaxy 2014 720p BluRay x264 AAC", "New test"),
+        ("Audio: Hindi, English | Movie 2020 1080p", "Audio prefix test"),
     ]
 
     for text, desc in test_cases:
@@ -79,5 +69,4 @@ if __name__ == "__main__":
         print(f"\n{desc}:")
         print(f"  Input: {text}")
         print(f"  Output: {result}")
-        print(f"  content_type: {result.content_type}")
         

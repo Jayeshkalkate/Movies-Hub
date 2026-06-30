@@ -74,7 +74,6 @@ def _build_genre_list(genres_data: Any) -> List[str]:
             return [g for g in genres_data if g]
         if all(isinstance(g, dict) for g in genres_data):
             return [g.get('name', '') for g in genres_data if g.get('name')]
-    # If it's a single dict with names? Unlikely.
     return []
 
 
@@ -129,6 +128,30 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text)
 
 
+def _ensure_common_fields(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensure all required common fields are present with correct defaults.
+
+    Required fields: external_id, poster, backdrop, overview, runtime,
+    genres, rating, release_date, language.
+    """
+    defaults = {
+        "external_id": "",
+        "poster": "",
+        "backdrop": "",
+        "overview": "",
+        "runtime": None,
+        "genres": [],
+        "rating": 0.0,
+        "release_date": "",
+        "language": "",
+    }
+    for key, default in defaults.items():
+        if key not in data or data[key] is None:
+            data[key] = default
+    return data
+
+
 # ------------------- Provider Formatters -------------------
 
 def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, Any]:
@@ -178,7 +201,7 @@ def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, 
 
     content_type_out = "movie" if is_movie else "tv"
 
-    return {
+    result = {
         "external_id": external_id,
         "source": source,
         "title": title or "",
@@ -196,6 +219,7 @@ def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, 
         "season_count": season_count,
         "episode_count": episode_count,
     }
+    return _ensure_common_fields(result)
 
 
 def format_tvmaze(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -250,7 +274,7 @@ def format_tvmaze(item: Dict[str, Any]) -> Dict[str, Any]:
 
     content_type_out = "tv"
 
-    return {
+    result = {
         "external_id": external_id,
         "source": source,
         "title": title,
@@ -268,6 +292,7 @@ def format_tvmaze(item: Dict[str, Any]) -> Dict[str, Any]:
         "season_count": season_count,
         "episode_count": episode_count,
     }
+    return _ensure_common_fields(result)
 
 
 def format_jikan(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -337,7 +362,7 @@ def format_jikan(item: Dict[str, Any]) -> Dict[str, Any]:
         season_count = None
         episode_count = None
 
-    return {
+    result = {
         "external_id": external_id,
         "source": source,
         "title": title,
@@ -355,6 +380,7 @@ def format_jikan(item: Dict[str, Any]) -> Dict[str, Any]:
         "season_count": season_count,
         "episode_count": episode_count,
     }
+    return _ensure_common_fields(result)
 
 
 def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -422,7 +448,7 @@ def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
         season_count = None
         episode_count = None
 
-    return {
+    result = {
         "external_id": external_id,
         "source": source,
         "title": title,
@@ -440,6 +466,7 @@ def format_anilist(item: Dict[str, Any]) -> Dict[str, Any]:
         "season_count": season_count,
         "episode_count": episode_count,
     }
+    return _ensure_common_fields(result)
 
 
 # ------------------- Provider Registry and Auto-Dispatch -------------------

@@ -560,34 +560,28 @@ def delete_movie(request, movie_id):
     
 @login_required
 def movie_detail(request, movie_id):
-    movie = get_object_or_404(
-        TelegramMovie,
-        id=movie_id
-    )
+    movie = get_object_or_404(TelegramMovie, id=movie_id)
 
     # Get user's verification status
-    verification, created = (
-        MembershipVerification.objects.get_or_create(
-            user=request.user
-        )
-    )
-    
-    TelegramMovie.objects.filter(
-        id=movie.id
-    ).update(
-        views=F("views") + 1
-    )
+    verification, created = MembershipVerification.objects.get_or_create(user=request.user)
 
+    TelegramMovie.objects.filter(id=movie.id).update(views=F("views") + 1)
     movie.refresh_from_db()
 
-    return render(
-        request,
-        "movies/movie_detail.html",
-        {
-            "movie": movie,
-            "is_verified": verification.membership_status,
-        }
-    )
+    # ----- SAFE EXTRACTION OF METADATA FIELDS -----
+    # Never assume values exist; always use fallbacks.
+    release_year = movie.release_date.year if movie.release_date else None
+    rating = movie.rating if movie.rating is not None else None
+    duration = movie.duration if movie.duration is not None else None
+
+    context = {
+        "movie": movie,
+        "is_verified": verification.membership_status,
+        "release_year": release_year,   # safe for templates
+        "rating": rating,
+        "duration": duration,
+    }
+    return render(request, "movies/movie_detail.html", context)
         
 @login_required
 def category_movies(request, slug):

@@ -409,7 +409,14 @@ class TelegramMovie(models.Model):
         auto_now=True,
         db_index=True,       # <-- index added
     )
-
+    
+    genres = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Comma-separated genres (e.g., Action, Sci-Fi)",
+    )
+    
     class Meta:
         ordering = ["-created_at", "-id"]   # <-- better ordering
         verbose_name = "Telegram Movie"

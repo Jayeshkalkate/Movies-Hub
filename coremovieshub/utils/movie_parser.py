@@ -124,6 +124,8 @@ NOISE_TAGS = [
     "Director's Cut", "Final", "Extended Cut", "BluRay REMUX",
     "WEB", "WEB-HD", "WEBHD", "HD", "UHD", "SDR",
     "REMASTERED", "REMASTER",
+    # Added IMAX support
+    "IMAX",
 ]
 
 # Year pattern (captures 4-digit year) – we'll use this to find the first occurrence
@@ -354,65 +356,39 @@ def parse_movie(text: str) -> Dict[str, Any]:
     raw = re.sub(r"(?i)join\s*@\S+", "", raw)
     raw = re.sub(r"(?i)\bjoin\b.*", "", raw)
 
-    # Remove brackets/parentheses that don't contain a year (but keep parentheses with years)
-    # First, extract the year from the raw string to know if a bracket contains it
-    year_match = YEAR_PATTERN.search(raw)
-    if year_match:
-        year_str = year_match.group(1)
-        # Remove brackets that do NOT contain the year
-        raw = re.sub(r"\[[^\]]*\]", " ", raw)
-        raw = re.sub(r"\{[^}]*\}", " ", raw)
-        # Keep parentheses if they contain the year (we'll keep them)
-        # But we might want to keep them for now; later we'll remove the year itself.
-    else:
-        # If no year, remove all bracket content
-        raw = re.sub(r"\[[^\]]*\]", " ", raw)
-        raw = re.sub(r"\{[^}]*\}", " ", raw)
-        raw = re.sub(r"\([^)]*\)", " ", raw)   # remove all parentheses
+    # Remove bracket content that doesn't contain a year, but we'll do that later.
+    # First, we'll extract languages from this normalized raw (before cleaning)
+    languages = extract_languages(raw)   # <-- extract languages early
+
+    # Remove "Audio: ..." patterns (after language extraction)
+    raw = re.sub(r"\bAudio\s*:\s*[^,]+(?:,\s*[^,]+)*", "", raw, flags=re.IGNORECASE)
+
+    # Now handle brackets/parentheses
+    # We'll remove all bracket content (they are noise) except we might want to keep year.
+    # But we'll extract year later from cleaned text.
+    raw = re.sub(r"\[[^\]]*\]", " ", raw)
+    raw = re.sub(r"\{[^}]*\}", " ", raw)
+    # Remove parentheses, but we'll keep them if they contain a year? Actually we'll remove all parentheses
+    raw = re.sub(r"\([^)]*\)", " ", raw)
 
     # Collapse multiple spaces
     raw = re.sub(r"\s+", " ", raw).strip()
 
-    # ----- STEP 2: Truncate after the FIRST 4-digit year -----
+    # Truncate after the FIRST 4-digit year (to avoid extra text)
     match = YEAR_PATTERN.search(raw)
     if match:
-        # Keep everything up to and including that year
         raw = raw[:match.end()]
-    # (We no longer use the last year, we use the first)
 
-    # Now use this normalized text as the primary input
-    text = raw
+    # ----- STEP 2: Clean the text (remove all noise tags) -----
+    cleaned = clean_text(raw)
 
-    # ----- STEP 3: Split into lines and take the first non-empty line -----
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        return {
-            "title": "",
-            "year": None,
-            "season": None,
-            "episode": None,
-            "quality": None,
-            "languages": None,
-            "is_korean_drama": False,
-        }
+    # If cleaning emptied the line, try the whole text fallback (already done)
+    # We'll just use cleaned.
 
-    primary_line = lines[0]
-
-    # ----- STEP 4: Clean the primary line (remove noise) -----
-    cleaned = clean_text(primary_line)
-
-    # If cleaning emptied the line, try the next line
-    if not cleaned and len(lines) > 1:
-        cleaned = clean_text(lines[1])
-
-    # If still empty, fallback to whole text cleaning
-    if not cleaned:
-        cleaned = clean_text(text)
-
-    # ----- STEP 5: Extract metadata (order matters) -----
+    # ----- STEP 3: Extract metadata from cleaned (year, season, episode, quality) -----
     year = extract_year(cleaned)
     if year is not None:
-        # Remove the year itself (with possible surrounding brackets/parentheses)
+        # Remove the year itself from cleaned for title
         cleaned = re.sub(rf"\(?\b{year}\b\)?", "", cleaned)
         cleaned = re.sub(rf"\[?\b{year}\b\]?", "", cleaned)
 
@@ -426,21 +402,22 @@ def parse_movie(text: str) -> Dict[str, Any]:
     if quality is not None:
         cleaned = re.sub(rf"\b{re.escape(quality)}\b", "", cleaned, flags=re.IGNORECASE)
 
-    languages = extract_languages(cleaned)
-    if languages is not None:
+    # We already extracted languages, but we should also remove them from cleaned for title
+    if languages:
         for lang in languages:
             cleaned = re.sub(rf"\b{re.escape(lang)}\b", "", cleaned, flags=re.IGNORECASE)
+        # Also remove "Dual Audio" etc. that might remain
+        cleaned = re.sub(r"\b(?:dual|multi)\s+audio\b", "", cleaned, flags=re.IGNORECASE)
 
-    # ----- STEP 6: The remainder is the title -----
+    # ----- STEP 4: The remainder is the title -----
     # Remove leftover separators and collapse spaces
     cleaned = re.sub(r"\s*[~+|/]\s*", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     title = cleaned if cleaned else None
 
-    # Fallback: if title is empty, strip bracketed content aggressively
-    if not title and primary_line:
-        fallback = primary_line
-        # Remove parenthesized/bracketed content
+    # Fallback: if title is empty, try to use the original raw without bracketed content
+    if not title and text:
+        fallback = text
         fallback = re.sub(r"\([^)]*\)", "", fallback)
         fallback = re.sub(r"\[[^\]]*\]", "", fallback)
         fallback = re.sub(r"\{[^}]*\}", "", fallback)
@@ -541,6 +518,9 @@ if __name__ == "__main__":
         "Avatar Avatar 2009 720p",
         "Season-2 Ep-08 of Game of Thrones 2012",
         "Movie.Name.2024.1080p.x264.mkv",
+        "File name:- Guardians of the Galaxy 2014 720p BluRay x264 AAC",  # new test
+        "Audio: Hindi, English | Movie 2020 1080p",                     # new test
+        "IMAX: Interstellar 2014 1080p",                                # new test
     ]
 
     for cap in test_cases:

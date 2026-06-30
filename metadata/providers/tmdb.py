@@ -10,16 +10,15 @@ Usage:
     from tmdb import get_tmdb_client
     client = get_tmdb_client()
 
-    # For clean titles:
-    result = client.search_movie("Inception", year=2010)
+    # For clean titles (returns formatted dict):
+    movie = client.get_best_movie("Inception", year=2010)
+    print(movie['title'], movie['release_year'], movie['overview'])
 
-    # For raw captions / filenames (recommended):
-    result = client.search_movie_from_text("Inception 2010 1080p WEB-DL x264")
+    # For raw captions / filenames:
+    movie = client.get_best_movie_from_text("Inception 2010 1080p WEB-DL x264")
 
-    # To get the first (best) match directly:
-    movie = client.get_best_movie_from_text("The Matrix 1999 BluRay")
-    if movie:
-        print(movie['title'], movie['release_date'])
+    # To get raw details (not formatted) if needed:
+    raw = client.get_best_movie("The Matrix", formatted=False)
 """
 
 import logging
@@ -106,6 +105,85 @@ class TMDbNotFound(TMDbError):
 class TMDbRateLimitError(TMDbError):
     """Raised when rate limit is exceeded."""
     pass
+
+
+# ------------------- Formatter Functions -------------------
+
+def format_movie(details: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Format raw movie details from TMDb into a clean, structured dict.
+
+    Args:
+        details: The full movie details response from TMDb.
+
+    Returns:
+        Dict with keys: id, title, original_title, release_year, release_date,
+                         overview, poster_path, backdrop_path, vote_average,
+                         vote_count, genres, runtime, status, tagline, imdb_id.
+    """
+    def get_year(date_str):
+        if date_str and len(date_str) >= 4:
+            return date_str[:4]
+        return None
+
+    return {
+        "id": details.get("id"),
+        "title": details.get("title"),
+        "original_title": details.get("original_title"),
+        "release_year": get_year(details.get("release_date")),
+        "release_date": details.get("release_date"),
+        "overview": details.get("overview"),
+        "poster_path": details.get("poster_path"),
+        "backdrop_path": details.get("backdrop_path"),
+        "vote_average": details.get("vote_average"),
+        "vote_count": details.get("vote_count"),
+        "genres": [g["name"] for g in details.get("genres", [])],
+        "runtime": details.get("runtime"),
+        "status": details.get("status"),
+        "tagline": details.get("tagline"),
+        "imdb_id": details.get("imdb_id"),
+        "original_language": details.get("original_language"),
+    }
+
+
+def format_tv(details: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Format raw TV series details from TMDb into a clean, structured dict.
+
+    Args:
+        details: The full TV series details response from TMDb.
+
+    Returns:
+        Dict with keys: id, name, original_name, first_air_year, first_air_date,
+                         last_air_date, overview, poster_path, backdrop_path,
+                         vote_average, vote_count, genres, number_of_seasons,
+                         number_of_episodes, status, tagline, imdb_id.
+    """
+    def get_year(date_str):
+        if date_str and len(date_str) >= 4:
+            return date_str[:4]
+        return None
+
+    return {
+        "id": details.get("id"),
+        "name": details.get("name"),
+        "original_name": details.get("original_name"),
+        "first_air_year": get_year(details.get("first_air_date")),
+        "first_air_date": details.get("first_air_date"),
+        "last_air_date": details.get("last_air_date"),
+        "overview": details.get("overview"),
+        "poster_path": details.get("poster_path"),
+        "backdrop_path": details.get("backdrop_path"),
+        "vote_average": details.get("vote_average"),
+        "vote_count": details.get("vote_count"),
+        "genres": [g["name"] for g in details.get("genres", [])],
+        "number_of_seasons": details.get("number_of_seasons"),
+        "number_of_episodes": details.get("number_of_episodes"),
+        "status": details.get("status"),
+        "tagline": details.get("tagline"),
+        "imdb_id": details.get("external_ids", {}).get("imdb_id"),
+        "original_language": details.get("original_language"),
+    }
 
 
 # ------------------- Client Class -------------------
@@ -285,6 +363,9 @@ class TMDbClient:
         `search_movie_from_text()` instead, which automatically parses and cleans
         the input for better results.
 
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_movie()` which will fetch and format the details.
+
         Args:
             title: The movie title (should be clean, without extra metadata).
             year: Optional year to narrow results.
@@ -328,6 +409,9 @@ class TMDbClient:
 
         This is the preferred method when you have raw Telegram captions or filenames.
 
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_movie_from_text()`.
+
         Args:
             raw_text: The raw text (caption, filename) containing movie info.
             include_adult: Whether to include adult content.
@@ -368,6 +452,9 @@ class TMDbClient:
 
         **Note:** If you have raw text, use `search_tv_from_text()`.
 
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_tv()`.
+
         Args:
             title: The TV series title (should be clean).
             first_air_date_year: Optional first air year to narrow results.
@@ -403,6 +490,9 @@ class TMDbClient:
         """
         Parse a raw caption/filename to extract a clean title and year,
         then search TMDb for a TV series.
+
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_tv_from_text()`.
 
         Args:
             raw_text: The raw text (caption, filename) containing TV info.
@@ -445,6 +535,9 @@ class TMDbClient:
 
         This is a convenience method that combines both approaches.
 
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_movie()` or `get_best_movie_from_text()` directly.
+
         Args:
             text: The input text (could be clean title or raw caption/filename).
             include_adult: Whether to include adult content.
@@ -481,6 +574,9 @@ class TMDbClient:
         Automatically decide whether to parse the text or treat it as a clean title
         for TV series searches.
 
+        **Important:** The returned results are raw search results. For full details,
+        use `get_best_tv()` or `get_best_tv_from_text()`.
+
         Args:
             text: The input text.
             include_adult: Whether to include adult content.
@@ -505,7 +601,7 @@ class TMDbClient:
             logger.debug(f"Auto-detected clean title, using search_tv: {text}")
             return self.search_tv(text, None, include_adult)
 
-    # ------------------- "Get Best Match" Methods -------------------
+    # ------------------- "Get Best Match" Methods (with Details & Formatting) -------------------
 
     def get_best_movie(
         self,
@@ -513,149 +609,188 @@ class TMDbClient:
         year: Optional[int] = None,
         include_adult: bool = False,
         region: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        formatted: bool = True,
+    ) -> Optional[Union[Dict[str, Any], None]]:
         """
-        Search for a movie and return the first (best) result, or None if none found.
+        Search for a movie, fetch the full details for the best match, and optionally format.
 
-        This is a convenience wrapper around `search_movie()`.
+        This method implements the full pipeline: Search → ID → Details → Formatter.
 
         Args:
             title: Clean movie title.
             year: Optional year.
             include_adult: Whether to include adult content.
             region: ISO 3166-1 country code.
+            formatted: If True, return a formatted dict (via format_movie).
+                       If False, return the raw details from the details endpoint.
 
         Returns:
-            Optional[Dict[str, Any]]: The first movie result, or None.
+            Optional[Union[Dict[str, Any], None]]: The best match (formatted or raw details),
+            or None if no match found.
+
+        Raises:
+            TMDbError: If the details fetch fails (e.g., network error).
         """
+        # Step 1: Search
         data = self.search_movie(title, year, include_adult, region)
         results = data.get("results", [])
-        if results:
-            logger.info(f"Best movie match: {results[0].get('title')} ({results[0].get('release_date', 'N/A')})")
-            # Verify result integrity
-            self._verify_movie_result(results[0])
-            return results[0]
-        else:
+        if not results:
             logger.warning(f"No movie results found for title='{title}', year={year}")
             return None
+
+        best_search = results[0]
+        movie_id = best_search.get("id")
+        if not movie_id:
+            logger.warning(f"Search result missing ID for title='{title}'")
+            return None
+
+        # Step 2: Fetch details using the ID
+        try:
+            details = self.get_movie(movie_id)
+        except TMDbError as e:
+            logger.error(f"Failed to fetch details for movie ID {movie_id}: {e}")
+            # Re-raise or return None? We'll raise to signal failure.
+            raise
+
+        # Step 3: Format if requested
+        if formatted:
+            return format_movie(details)
+        else:
+            return details
 
     def get_best_movie_from_text(
         self,
         raw_text: str,
         include_adult: bool = False,
         region: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        formatted: bool = True,
+    ) -> Optional[Union[Dict[str, Any], None]]:
         """
-        Parse raw text and return the first (best) movie result.
+        Parse raw text, search, fetch details, and format the best movie match.
+
+        Implements the full pipeline: Parse → Search → ID → Details → Formatter.
 
         Args:
             raw_text: Raw caption/filename.
             include_adult: Whether to include adult content.
             region: ISO 3166-1 country code.
+            formatted: If True, return formatted dict; else raw details.
 
         Returns:
-            Optional[Dict[str, Any]]: The first movie result, or None.
+            Optional[Union[Dict[str, Any], None]]: The best match (formatted or raw),
+            or None if no match.
         """
+        # Step 1: Parse text and search
         data = self.search_movie_from_text(raw_text, include_adult, region)
         results = data.get("results", [])
-        if results:
-            logger.info(f"Best movie match from text: {results[0].get('title')} ({results[0].get('release_date', 'N/A')})")
-            self._verify_movie_result(results[0])
-            return results[0]
-        else:
+        if not results:
             logger.warning(f"No movie results found for raw text: {raw_text[:50]}...")
             return None
+
+        best_search = results[0]
+        movie_id = best_search.get("id")
+        if not movie_id:
+            logger.warning(f"Search result missing ID for raw text: {raw_text[:50]}...")
+            return None
+
+        # Step 2: Fetch details
+        try:
+            details = self.get_movie(movie_id)
+        except TMDbError as e:
+            logger.error(f"Failed to fetch details for movie ID {movie_id}: {e}")
+            raise
+
+        # Step 3: Format
+        if formatted:
+            return format_movie(details)
+        else:
+            return details
 
     def get_best_tv(
         self,
         title: str,
         first_air_date_year: Optional[int] = None,
         include_adult: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+        formatted: bool = True,
+    ) -> Optional[Union[Dict[str, Any], None]]:
         """
-        Search for a TV series and return the first (best) result.
+        Search for a TV series, fetch full details, and optionally format.
+
+        Implements: Search → ID → Details → Formatter.
 
         Args:
             title: Clean TV series title.
             first_air_date_year: Optional first air year.
             include_adult: Whether to include adult content.
+            formatted: If True, return formatted dict; else raw details.
 
         Returns:
-            Optional[Dict[str, Any]]: The first TV result, or None.
+            Optional[Union[Dict[str, Any], None]]: The best match, or None.
         """
         data = self.search_tv(title, first_air_date_year, include_adult)
         results = data.get("results", [])
-        if results:
-            logger.info(f"Best TV match: {results[0].get('name')} ({results[0].get('first_air_date', 'N/A')})")
-            self._verify_tv_result(results[0])
-            return results[0]
-        else:
+        if not results:
             logger.warning(f"No TV results found for title='{title}', year={first_air_date_year}")
             return None
+
+        best_search = results[0]
+        tv_id = best_search.get("id")
+        if not tv_id:
+            logger.warning(f"Search result missing ID for title='{title}'")
+            return None
+
+        try:
+            details = self.get_tv(tv_id)
+        except TMDbError as e:
+            logger.error(f"Failed to fetch details for TV ID {tv_id}: {e}")
+            raise
+
+        if formatted:
+            return format_tv(details)
+        else:
+            return details
 
     def get_best_tv_from_text(
         self,
         raw_text: str,
         include_adult: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+        formatted: bool = True,
+    ) -> Optional[Union[Dict[str, Any], None]]:
         """
-        Parse raw text and return the first (best) TV series result.
+        Parse raw text, search for TV, fetch details, and optionally format.
+
+        Implements: Parse → Search → ID → Details → Formatter.
 
         Args:
             raw_text: Raw caption/filename.
             include_adult: Whether to include adult content.
+            formatted: If True, return formatted dict; else raw details.
 
         Returns:
-            Optional[Dict[str, Any]]: The first TV result, or None.
+            Optional[Union[Dict[str, Any], None]]: The best match, or None.
         """
         data = self.search_tv_from_text(raw_text, include_adult)
         results = data.get("results", [])
-        if results:
-            logger.info(f"Best TV match from text: {results[0].get('name')} ({results[0].get('first_air_date', 'N/A')})")
-            self._verify_tv_result(results[0])
-            return results[0]
-        else:
+        if not results:
             logger.warning(f"No TV results found for raw text: {raw_text[:50]}...")
             return None
 
-    # ------------------- Verification Helpers -------------------
+        best_search = results[0]
+        tv_id = best_search.get("id")
+        if not tv_id:
+            logger.warning(f"Search result missing ID for raw text: {raw_text[:50]}...")
+            return None
 
-    def _verify_movie_result(self, movie: Dict[str, Any]) -> None:
-        """
-        Verify that a movie result has the minimum required fields and log warnings if missing.
+        try:
+            details = self.get_tv(tv_id)
+        except TMDbError as e:
+            logger.error(f"Failed to fetch details for TV ID {tv_id}: {e}")
+            raise
 
-        Args:
-            movie: A movie result dict from TMDb.
-        """
-        required = ["id", "title"]
-        for field in required:
-            if field not in movie:
-                logger.warning(f"Movie result missing field '{field}': {movie.get('id', 'unknown')}")
-        if not movie.get("release_date"):
-            logger.debug(f"Movie has no release_date: {movie.get('title')}")
-        if not movie.get("poster_path"):
-            logger.debug(f"Movie has no poster_path: {movie.get('title')}")
-        # Check that the title is not empty
-        if not movie.get("title"):
-            logger.warning(f"Movie result has empty title: {movie}")
-
-    def _verify_tv_result(self, tv: Dict[str, Any]) -> None:
-        """
-        Verify that a TV result has the minimum required fields and log warnings if missing.
-
-        Args:
-            tv: A TV series result dict from TMDb.
-        """
-        required = ["id", "name"]
-        for field in required:
-            if field not in tv:
-                logger.warning(f"TV result missing field '{field}': {tv.get('id', 'unknown')}")
-        if not tv.get("first_air_date"):
-            logger.debug(f"TV has no first_air_date: {tv.get('name')}")
-        if not tv.get("poster_path"):
-            logger.debug(f"TV has no poster_path: {tv.get('name')}")
-        if not tv.get("name"):
-            logger.warning(f"TV result has empty name: {tv}")
+        if formatted:
+            return format_tv(details)
+        else:
+            return details
 
     # ------------------- Detail Methods -------------------
 
@@ -674,7 +809,7 @@ class TMDbClient:
             language: Override the default language for this request.
 
         Returns:
-            Dict[str, Any]: The movie details.
+            Dict[str, Any]: The raw movie details.
 
         Raises:
             TMDbNotFound: If the movie does not exist.
@@ -708,7 +843,7 @@ class TMDbClient:
             language: Override the default language.
 
         Returns:
-            Dict[str, Any]: The TV series details.
+            Dict[str, Any]: The raw TV series details.
 
         Raises:
             TMDbNotFound: If the TV series does not exist.
@@ -730,13 +865,13 @@ class TMDbClient:
         """
         Find a movie by its IMDb ID (e.g., "tt1375666").
 
-        This uses the TMDb 'find' endpoint.
+        This uses the TMDb 'find' endpoint. The result is the raw movie details.
 
         Args:
             imdb_id: The IMDb ID (with 'tt' prefix).
 
         Returns:
-            Dict[str, Any]: The movie details, or raises TMDbNotFound if not found.
+            Dict[str, Any]: The raw movie details.
 
         Raises:
             TMDbNotFound: If no movie with that IMDb ID is found.
@@ -747,7 +882,6 @@ class TMDbClient:
         results = data.get("movie_results", [])
         if not results:
             raise TMDbNotFound(f"No movie found for IMDb ID: {imdb_id}")
-        # Return the first result (usually the best match)
         movie = results[0]
         self._verify_movie_result(movie)
         return movie
@@ -756,11 +890,13 @@ class TMDbClient:
         """
         Find a TV series by its IMDb ID (e.g., "tt0903747").
 
+        Returns the raw TV details.
+
         Args:
             imdb_id: The IMDb ID (with 'tt' prefix).
 
         Returns:
-            Dict[str, Any]: The TV series details.
+            Dict[str, Any]: The raw TV series details.
 
         Raises:
             TMDbNotFound: If no TV series with that IMDb ID is found.
@@ -818,6 +954,26 @@ class TMDbClient:
             return ""
         return f"https://image.tmdb.org/t/p/{size}{path}"
 
+    # ------------------- Verification Helpers (private) -------------------
+
+    def _verify_movie_result(self, movie: Dict[str, Any]) -> None:
+        """Verify that a movie result has the minimum required fields."""
+        required = ["id", "title"]
+        for field in required:
+            if field not in movie:
+                logger.warning(f"Movie result missing field '{field}': {movie.get('id', 'unknown')}")
+        if not movie.get("title"):
+            logger.warning(f"Movie result has empty title: {movie}")
+
+    def _verify_tv_result(self, tv: Dict[str, Any]) -> None:
+        """Verify that a TV result has the minimum required fields."""
+        required = ["id", "name"]
+        for field in required:
+            if field not in tv:
+                logger.warning(f"TV result missing field '{field}': {tv.get('id', 'unknown')}")
+        if not tv.get("name"):
+            logger.warning(f"TV result has empty name: {tv}")
+
 
 # ------------------- Helper to get client instance -------------------
 
@@ -842,26 +998,33 @@ if __name__ == "__main__":
     # Configure logging to see output
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    # Attempt to get client (requires API key in environment or settings)
     try:
-        # For testing, you can pass api_key directly:
-        # client = TMDbClient(api_key="your_api_key_here")
-        client = get_tmdb_client()  # reads from Django settings
+        client = get_tmdb_client()
 
-        # Test with raw caption
-        raw = "Paatal Lok 2020 S01 AMZN WEB DL"
-        print("Testing search_movie_from_text...")
-        result = client.search_movie_from_text(raw)
-        print(f"Found {result.get('total_results', 0)} results.")
-        best = client.get_best_movie_from_text(raw)
-        if best:
-            print(f"Best match: {best['title']} ({best.get('release_date', 'N/A')})")
+        # Test with raw caption – will fetch details and format
+        raw = "Inception 2010 1080p WEB-DL"
+        movie = client.get_best_movie_from_text(raw)
+        if movie:
+            print("Formatted movie:")
+            for key, value in movie.items():
+                if value is not None:
+                    print(f"  {key}: {value}")
+        else:
+            print("No movie found.")
 
-        # Test TV search
+        # Test TV
         raw_tv = "The Expanse S01E05 1080p"
-        best_tv = client.get_best_tv_from_text(raw_tv)
-        if best_tv:
-            print(f"Best TV match: {best_tv['name']} ({best_tv.get('first_air_date', 'N/A')})")
+        tv = client.get_best_tv_from_text(raw_tv)
+        if tv:
+            print("\nFormatted TV:")
+            for key, value in tv.items():
+                if value is not None:
+                    print(f"  {key}: {value}")
+
+        # To get raw details:
+        raw_details = client.get_best_movie("The Matrix", formatted=False)
+        if raw_details:
+            print("\nRaw details keys:", list(raw_details.keys()))
 
     except TMDbError as e:
         print(f"TMDb error: {e}", file=sys.stderr)

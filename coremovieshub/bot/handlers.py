@@ -470,15 +470,16 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     """
     Process a channel post and save movie metadata.
     Uses the metadata manager for full enrichment.
+
+    Follows the pattern: Receive Telegram → Manager → Save Database.
+    Caption and filename are passed separately to the manager – never concatenated.
     """
     caption = post.caption or ""
-
-    # Extract basic info from caption
-    title = extract_title(caption) or "Untitled Movie"
-    year = extract_year(caption)
-    quality = extract_quality(caption) or ""   # Fix 7
-    description = clean_caption(caption)
-    languages = extract_languages(caption)
+    filename = ""
+    if hasattr(post, "document") and post.document:
+        filename = post.document.file_name or ""
+    elif hasattr(post, "video") and post.video:
+        filename = getattr(post.video, "file_name", "") or ""
 
     # Build message link
     chat_id = str(channel.chat_id)
@@ -486,79 +487,86 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         chat_id = chat_id[4:]
     message_link = f"https://t.me/c/{chat_id}/{post.message_id}"
 
-    # Prepare search text from filename and caption
-    filename = ""
-    if hasattr(post, "document") and post.document:
-        filename = post.document.file_name or ""
-    elif hasattr(post, "video") and post.video:
-        filename = getattr(post.video, "file_name", "") or ""
-
-    search_text = caption.strip()
-    
-    if not search_text:
-        search_text = filename.strip()
-
-    # Use the metadata manager to get enriched data
+    # ------------------------------------------------------------
+    # 1. Call the metadata manager with separate parameters
+    # ------------------------------------------------------------
     manager = get_manager()
+    metadata = None
     try:
-        metadata = manager.process_caption(search_text)
-        logger.info("Metadata enrichment: %s", metadata)
+        metadata = manager.process_caption(
+            caption=caption,
+            filename=filename,
+            telegram_file_id=media.file_id,
+        )
+        if metadata:
+            logger.info("Metadata enrichment successful: %s", metadata)
+        else:
+            logger.warning("Metadata manager returned None for caption: %s", caption[:50])
     except Exception as e:
         logger.exception("Metadata manager failed: %s", e)
-        metadata = None
+        # metadata remains None; fallback to simple extraction
 
-    # Prepare defaults for the movie record
+    # ------------------------------------------------------------
+    # 2. Build defaults from manager result, fallback to raw caption
+    # ------------------------------------------------------------
     if metadata:
-        # Title
-        enriched_title = metadata.get("title")
-        if enriched_title:
-            title = enriched_title
-
-        # Poster / banner
+        title = metadata.get("title") or "Untitled Movie"
+        year = metadata.get("year")
+        quality = metadata.get("quality") or ""
+        languages = metadata.get("languages") or []
         poster = metadata.get("poster") or metadata.get("poster_url")
         banner = metadata.get("backdrop") or metadata.get("backdrop_url") or poster
-        overview = metadata.get("overview") or description
-
-        # Rating → float (Fix 3)
+        overview = metadata.get("overview") or caption
         rating = metadata.get("rating") or metadata.get("vote_average")
-        try:
-            rating = float(rating) if rating is not None else None
-        except (TypeError, ValueError):
-            rating = None
-
-        # Release date → date object (Fix 5)
         release_date = metadata.get("release_date")
-        if isinstance(release_date, str):
-            try:
-                release_date = datetime.strptime(release_date, "%Y-%m-%d").date()
-            except ValueError:
-                release_date = None
-        else:
-            release_date = None
-
-        # TMDB ID → int (Fix 4)
-        tmdb_id = metadata.get("external_id")
-        try:
-            tmdb_id = int(tmdb_id) if tmdb_id is not None else None
-        except (TypeError, ValueError):
-            tmdb_id = None
-
-        # Runtime → int (Fix 2)
+        tmdb_id = metadata.get("external_id") or metadata.get("tmdb_id")
         runtime = metadata.get("runtime")
-        try:
-            runtime = int(runtime) if runtime is not None else None
-        except (TypeError, ValueError):
-            runtime = None
     else:
+        # Fallback: simple extraction from caption (and maybe filename)
+        logger.info("Falling back to basic extraction due to missing metadata.")
+        title = extract_title(caption) or "Untitled Movie"
+        year = extract_year(caption)
+        quality = extract_quality(caption) or ""
+        languages = extract_languages(caption)
         poster = None
         banner = None
-        overview = description
+        overview = caption
         rating = None
         release_date = None
         tmdb_id = None
         runtime = None
 
-    # --- Duration ---
+    # Clean title
+    title = title.strip()[:255]
+
+    # Process rating
+    try:
+        rating = float(rating) if rating is not None else None
+    except (TypeError, ValueError):
+        rating = None
+
+    # Process release_date
+    if isinstance(release_date, str):
+        try:
+            release_date = datetime.strptime(release_date, "%Y-%m-%d").date()
+        except ValueError:
+            release_date = None
+    else:
+        release_date = None
+
+    # Process tmdb_id
+    try:
+        tmdb_id = int(tmdb_id) if tmdb_id is not None else None
+    except (TypeError, ValueError):
+        tmdb_id = None
+
+    # Process runtime
+    try:
+        runtime = int(runtime) if runtime is not None else None
+    except (TypeError, ValueError):
+        runtime = None
+
+    # Duration: from runtime or media duration
     if runtime:
         duration = runtime
     elif getattr(media, "duration", None):
@@ -566,7 +574,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     else:
         duration = None
 
-    # File size (Fix 6)
+    # File size
     file_size_bytes = getattr(media, "file_size", None)
     if file_size_bytes is not None:
         if file_size_bytes >= 1024 ** 3:
@@ -576,11 +584,14 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     else:
         file_size = ""
 
-    # Language (Fix 8)
+    # Language
     language = ", ".join(sorted(set(languages))) if languages else ""
 
+    # ------------------------------------------------------------
+    # 3. Save to database
+    # ------------------------------------------------------------
     defaults = {
-        "title": (title or "Untitled Movie").strip()[:255],   # Fix 9
+        "title": title,
         "content_type": "movie",
         "category": channel.category,
         "release_date": release_date,
@@ -588,7 +599,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         "telegram_file_id": media.file_id,
         "telegram_message_link": message_link,
         "quality": quality,
-        "description": description,
+        "description": caption,
         "poster": poster,
         "banner": banner,
         "overview": overview,
@@ -599,14 +610,12 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         "language": language,
     }
 
-    # Get or create the movie record
     movie, created = TelegramMovie.objects.get_or_create(
         telegram_message_id=post.message_id,
         channel=channel,
         defaults=defaults,
     )
 
-    # Update only if necessary (Fix 10)
     if not created:
         updated = False
         for key, value in defaults.items():
