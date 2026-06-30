@@ -84,7 +84,7 @@ MoviesHub – Stream, Watch & Enjoy
           <div class="card-body">
             <h5 class="card-title fw-semibold">{{ movie.title }}</h5>
             <p class="card-text text-muted small">
-              {{ movie.description|truncatewords:12|default:"No description" }}
+              {{ movie.overview|truncatewords:12|default:"No description" }}
             </p>
             <a
               href="{% url 'movie_detail' movie.id %}"

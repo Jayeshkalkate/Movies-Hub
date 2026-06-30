@@ -64,7 +64,7 @@ MoviesHub{% endblock %} {% block content %}
             style="height: 280px; object-fit: cover"
             onerror="
               this.onerror = null;
-              this.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+              this.src = '{% static 'images/no-poster.jpg' %}';
             "
           />
           {% else %}
@@ -90,8 +90,13 @@ MoviesHub{% endblock %} {% block content %}
             {{ movie.title }}
           </h5>
           <p class="card-text text-muted small mb-3">
-            {{ movie.description|truncatewords:12|default:"No description
-            available." }}
+            {% if movie.overview %}
+               {{ movie.overview|truncatewords:12 }}
+            {% elif movie.description %}
+               {{ movie.description|truncatewords:12 }}
+            {% else %}
+               No description available.
+            {% endif %}
           </p>
           <div class="mb-2">
             {% if movie.category %}

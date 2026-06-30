@@ -1,4 +1,6 @@
 {% extends "base.html" %} {% block content %}
+{% load static %}
+
 <div class="container mt-4">
   <!-- Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -19,13 +21,13 @@
         <div class="position-relative">
           {% if item.movie.poster %}
           <img
-            src="{{ item.movie{{ movie.poster }} }}"
+            src="{{ item.movie.poster }}"
             class="card-img-top"
             alt="{{ item.movie.title }}"
             style="height: 280px; object-fit: cover"
             onerror="
               this.onerror = null;
-              this.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+              this.src='{% static "images/no-poster.jpg" %}';
             "
           />
           {% else %}

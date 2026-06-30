@@ -1,5 +1,6 @@
-{% extends 'base.html' %} {% block title %}Edit Profile | MoviesHub{% endblock
-%} {% block content %}
+{% block title %}
+Edit Profile | MoviesHub
+{% endblock %}
 <div class="container mt-5">
   <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
@@ -31,7 +32,9 @@
                 {% if user.profile_picture %}
                 <img
                   id="image-preview"
-                  src="{{ user.profile_picture.url }}"
+                  src="{% if user.profile_picture %}
+                  <img src="{{ user.profile_picture.url }}">
+                  {% endif %}"
                   alt="Current profile picture"
                   class="rounded-circle"
                   style="width: 100px; height: 100px; object-fit: cover"

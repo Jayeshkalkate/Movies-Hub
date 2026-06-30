@@ -78,17 +78,23 @@
         </span>
       </div>
 
-      <!-- Overview (TMDB) or Description -->
-      {% if movie.overview or movie.description %}
+      <!-- Synopsis -->
       <div class="card shadow-sm border-0 rounded-4 mb-4">
         <div class="card-header bg-white py-3">
-          <h5 class="mb-0"><i class="bi bi-info-circle"></i> Synopsis</h5>
+          <h5 class="mb-0">
+            <i class="bi bi-info-circle"></i> Synopsis
+          </h5>
         </div>
         <div class="card-body">
-          <p class="mb-0">{{ movie.overview|default_if_none:movie.description|default:"No synopsis available."|linebreaks }}</p>
+          {% if movie.overview %}
+            <p class="mb-0">{{ movie.overview|linebreaks }}</p>
+          {% elif movie.description %}
+            <p class="mb-0">{{ movie.description|linebreaks }}</p>
+          {% else %}
+            <p class="text-muted mb-0">No synopsis available.</p>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
 
       <!-- Details Table -->
       <div class="card shadow-sm border-0 rounded-4 mb-4">
@@ -104,8 +110,13 @@
               </tr>
               <tr>
                 <th>Category</th>
-                {% comment %} {% if movie.category %} {% endcomment %}
-                <td>{{ movie.category.name }}</td>
+                <td>
+                  {% if movie.category %}
+                    {{ movie.category.name }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
               </tr>
               <tr>
                 <th>Year</th>
@@ -119,24 +130,30 @@
                 <th>Total Views</th>
                 <td>{{ movie.views|intcomma }}</td>
               </tr>
-              {% if movie.release_date %}
               <tr>
                 <th>Release Date</th>
-                <td>{{ movie.release_date|date:"F j, Y" }}</td>
+                <td>{{ movie.release_date|date:"F j, Y"|default:"—" }}</td>
               </tr>
-              {% endif %}
-              {% if movie.rating %}
               <tr>
                 <th>TMDB Rating</th>
-                <td>⭐ {{ movie.rating|floatformat:1 }}/10</td>
+                <td>
+                  {% if movie.rating %}
+                    ⭐ {{ movie.rating|floatformat:1 }}/10
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
               </tr>
-              {% endif %}
-              {% if movie.duration %}
               <tr>
                 <th>Duration</th>
-                <td>{{ movie.duration|format_duration }}</td>
+                <td>
+                  {% if movie.duration %}
+                    {{ movie.duration|format_duration }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
               </tr>
-              {% endif %}
             </tbody>
           </table>
         </div>
