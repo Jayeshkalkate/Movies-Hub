@@ -306,7 +306,15 @@ class TMDbClient:
         if region:
             params["region"] = region
 
-        return self._request("search/movie", params)
+        logger.info(f"Searching TMDb for movie: title='{title}', year={year}, region={region}")
+        response = self._request("search/movie", params)
+        total = response.get("total_results", 0)
+        logger.info(f"TMDb movie search returned {total} results")
+        # Verify and log the first result for debugging
+        if total > 0:
+            first = response["results"][0]
+            logger.debug(f"Top result: {first.get('title')} ({first.get('release_date', 'N/A')}) [ID: {first.get('id')}]")
+        return response
 
     def search_movie_from_text(
         self,
@@ -346,7 +354,7 @@ class TMDbClient:
             if year_match:
                 year = int(year_match.group())
 
-        logger.info(f"Searching TMDb for movie: title='{title}', year={year}")
+        logger.info(f"Parsed from raw text: title='{title}', year={year} (raw: {raw_text[:50]}...)")
         return self.search_movie(title, year, include_adult, region)
 
     def search_tv(
@@ -378,7 +386,14 @@ class TMDbClient:
         if first_air_date_year:
             params["first_air_date_year"] = first_air_date_year
 
-        return self._request("search/tv", params)
+        logger.info(f"Searching TMDb for TV: title='{title}', first_air_date_year={first_air_date_year}")
+        response = self._request("search/tv", params)
+        total = response.get("total_results", 0)
+        logger.info(f"TMDb TV search returned {total} results")
+        if total > 0:
+            first = response["results"][0]
+            logger.debug(f"Top result: {first.get('name')} ({first.get('first_air_date', 'N/A')}) [ID: {first.get('id')}]")
+        return response
 
     def search_tv_from_text(
         self,
@@ -413,7 +428,7 @@ class TMDbClient:
             if year_match:
                 year = int(year_match.group())
 
-        logger.info(f"Searching TMDb for TV series: title='{title}', first_air_date_year={year}")
+        logger.info(f"Parsed from raw text for TV: title='{title}', year={year} (raw: {raw_text[:50]}...)")
         return self.search_tv(title, year, include_adult)
 
     def search_movie_auto(
@@ -515,7 +530,14 @@ class TMDbClient:
         """
         data = self.search_movie(title, year, include_adult, region)
         results = data.get("results", [])
-        return results[0] if results else None
+        if results:
+            logger.info(f"Best movie match: {results[0].get('title')} ({results[0].get('release_date', 'N/A')})")
+            # Verify result integrity
+            self._verify_movie_result(results[0])
+            return results[0]
+        else:
+            logger.warning(f"No movie results found for title='{title}', year={year}")
+            return None
 
     def get_best_movie_from_text(
         self,
@@ -536,7 +558,13 @@ class TMDbClient:
         """
         data = self.search_movie_from_text(raw_text, include_adult, region)
         results = data.get("results", [])
-        return results[0] if results else None
+        if results:
+            logger.info(f"Best movie match from text: {results[0].get('title')} ({results[0].get('release_date', 'N/A')})")
+            self._verify_movie_result(results[0])
+            return results[0]
+        else:
+            logger.warning(f"No movie results found for raw text: {raw_text[:50]}...")
+            return None
 
     def get_best_tv(
         self,
@@ -557,7 +585,13 @@ class TMDbClient:
         """
         data = self.search_tv(title, first_air_date_year, include_adult)
         results = data.get("results", [])
-        return results[0] if results else None
+        if results:
+            logger.info(f"Best TV match: {results[0].get('name')} ({results[0].get('first_air_date', 'N/A')})")
+            self._verify_tv_result(results[0])
+            return results[0]
+        else:
+            logger.warning(f"No TV results found for title='{title}', year={first_air_date_year}")
+            return None
 
     def get_best_tv_from_text(
         self,
@@ -576,7 +610,52 @@ class TMDbClient:
         """
         data = self.search_tv_from_text(raw_text, include_adult)
         results = data.get("results", [])
-        return results[0] if results else None
+        if results:
+            logger.info(f"Best TV match from text: {results[0].get('name')} ({results[0].get('first_air_date', 'N/A')})")
+            self._verify_tv_result(results[0])
+            return results[0]
+        else:
+            logger.warning(f"No TV results found for raw text: {raw_text[:50]}...")
+            return None
+
+    # ------------------- Verification Helpers -------------------
+
+    def _verify_movie_result(self, movie: Dict[str, Any]) -> None:
+        """
+        Verify that a movie result has the minimum required fields and log warnings if missing.
+
+        Args:
+            movie: A movie result dict from TMDb.
+        """
+        required = ["id", "title"]
+        for field in required:
+            if field not in movie:
+                logger.warning(f"Movie result missing field '{field}': {movie.get('id', 'unknown')}")
+        if not movie.get("release_date"):
+            logger.debug(f"Movie has no release_date: {movie.get('title')}")
+        if not movie.get("poster_path"):
+            logger.debug(f"Movie has no poster_path: {movie.get('title')}")
+        # Check that the title is not empty
+        if not movie.get("title"):
+            logger.warning(f"Movie result has empty title: {movie}")
+
+    def _verify_tv_result(self, tv: Dict[str, Any]) -> None:
+        """
+        Verify that a TV result has the minimum required fields and log warnings if missing.
+
+        Args:
+            tv: A TV series result dict from TMDb.
+        """
+        required = ["id", "name"]
+        for field in required:
+            if field not in tv:
+                logger.warning(f"TV result missing field '{field}': {tv.get('id', 'unknown')}")
+        if not tv.get("first_air_date"):
+            logger.debug(f"TV has no first_air_date: {tv.get('name')}")
+        if not tv.get("poster_path"):
+            logger.debug(f"TV has no poster_path: {tv.get('name')}")
+        if not tv.get("name"):
+            logger.warning(f"TV result has empty name: {tv}")
 
     # ------------------- Detail Methods -------------------
 
@@ -607,7 +686,12 @@ class TMDbClient:
         if language:
             params["language"] = language
 
-        return self._request(f"movie/{movie_id}", params)
+        logger.debug(f"Fetching movie details for ID {movie_id}")
+        response = self._request(f"movie/{movie_id}", params)
+        # Verify the response has basic fields
+        if response:
+            self._verify_movie_result(response)
+        return response
 
     def get_tv(
         self,
@@ -636,7 +720,11 @@ class TMDbClient:
         if language:
             params["language"] = language
 
-        return self._request(f"tv/{tv_id}", params)
+        logger.debug(f"Fetching TV details for ID {tv_id}")
+        response = self._request(f"tv/{tv_id}", params)
+        if response:
+            self._verify_tv_result(response)
+        return response
 
     def get_movie_by_imdb_id(self, imdb_id: str) -> Dict[str, Any]:
         """
@@ -660,7 +748,9 @@ class TMDbClient:
         if not results:
             raise TMDbNotFound(f"No movie found for IMDb ID: {imdb_id}")
         # Return the first result (usually the best match)
-        return results[0]
+        movie = results[0]
+        self._verify_movie_result(movie)
+        return movie
 
     def get_tv_by_imdb_id(self, imdb_id: str) -> Dict[str, Any]:
         """
@@ -681,7 +771,9 @@ class TMDbClient:
         results = data.get("tv_results", [])
         if not results:
             raise TMDbNotFound(f"No TV series found for IMDb ID: {imdb_id}")
-        return results[0]
+        tv = results[0]
+        self._verify_tv_result(tv)
+        return tv
 
     # ------------------- Additional Endpoints -------------------
 

@@ -462,6 +462,9 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------- Channel Post Handler -------------------
 
+from datetime import datetime
+from typing import Optional
+
 @sync_to_async
 def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     """
@@ -473,7 +476,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     # Extract basic info from caption
     title = extract_title(caption) or "Untitled Movie"
     year = extract_year(caption)
-    quality = extract_quality(caption)
+    quality = extract_quality(caption) or ""   # Fix 7
     description = clean_caption(caption)
     languages = extract_languages(caption)
 
@@ -490,9 +493,10 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     elif hasattr(post, "video") and post.video:
         filename = getattr(post.video, "file_name", "") or ""
 
-    search_text = "\n".join(
-        x.strip() for x in [filename, caption] if x and x.strip()
-    )
+    search_text = caption.strip()
+    
+    if not search_text:
+        search_text = filename.strip()
 
     # Use the metadata manager to get enriched data
     manager = get_manager()
@@ -505,18 +509,46 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
 
     # Prepare defaults for the movie record
     if metadata:
-        # Extract fields from metadata dict
+        # Title
         enriched_title = metadata.get("title")
         if enriched_title:
             title = enriched_title
 
+        # Poster / banner
         poster = metadata.get("poster") or metadata.get("poster_url")
         banner = metadata.get("backdrop") or metadata.get("backdrop_url") or poster
         overview = metadata.get("overview") or description
+
+        # Rating → float (Fix 3)
         rating = metadata.get("rating") or metadata.get("vote_average")
+        try:
+            rating = float(rating) if rating is not None else None
+        except (TypeError, ValueError):
+            rating = None
+
+        # Release date → date object (Fix 5)
         release_date = metadata.get("release_date")
+        if isinstance(release_date, str):
+            try:
+                release_date = datetime.strptime(release_date, "%Y-%m-%d").date()
+            except ValueError:
+                release_date = None
+        else:
+            release_date = None
+
+        # TMDB ID → int (Fix 4)
         tmdb_id = metadata.get("external_id")
+        try:
+            tmdb_id = int(tmdb_id) if tmdb_id is not None else None
+        except (TypeError, ValueError):
+            tmdb_id = None
+
+        # Runtime → int (Fix 2)
         runtime = metadata.get("runtime")
+        try:
+            runtime = int(runtime) if runtime is not None else None
+        except (TypeError, ValueError):
+            runtime = None
     else:
         poster = None
         banner = None
@@ -526,9 +558,17 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         tmdb_id = None
         runtime = None
 
-    # Compute file size string
+    # --- Duration ---
+    if runtime:
+        duration = runtime
+    elif getattr(media, "duration", None):
+        duration = media.duration // 60
+    else:
+        duration = None
+
+    # File size (Fix 6)
     file_size_bytes = getattr(media, "file_size", None)
-    if file_size_bytes:
+    if file_size_bytes is not None:
         if file_size_bytes >= 1024 ** 3:
             file_size = f"{round(file_size_bytes / (1024 ** 3), 2)} GB"
         else:
@@ -536,13 +576,11 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
     else:
         file_size = ""
 
-    # Duration
-    duration = runtime if runtime else getattr(media, "duration", None)
-    if duration:
-        duration = str(duration)
+    # Language (Fix 8)
+    language = ", ".join(sorted(set(languages))) if languages else ""
 
     defaults = {
-        "title": title[:255],
+        "title": (title or "Untitled Movie").strip()[:255],   # Fix 9
         "content_type": "movie",
         "category": channel.category,
         "release_date": release_date,
@@ -558,7 +596,7 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         "tmdb_id": tmdb_id,
         "file_size": file_size,
         "duration": duration,
-        "language": ", ".join(languages) if languages else "",
+        "language": language,
     }
 
     # Get or create the movie record
@@ -568,12 +606,16 @@ def save_channel_movie(post, channel, media) -> Optional[TelegramMovie]:
         defaults=defaults,
     )
 
+    # Update only if necessary (Fix 10)
     if not created:
-        # Update existing record with new data if needed
+        updated = False
         for key, value in defaults.items():
-            setattr(movie, key, value)
-        movie.save()
-        logger.info("Movie updated: %s", movie.title)
+            if getattr(movie, key) != value:
+                setattr(movie, key, value)
+                updated = True
+        if updated:
+            movie.save()
+            logger.info("Movie updated: %s", movie.title)
     else:
         logger.info("Movie saved: %s (ID %s)", movie.title, movie.pk)
 

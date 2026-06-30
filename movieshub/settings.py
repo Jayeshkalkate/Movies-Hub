@@ -9,15 +9,13 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-"""
-Django settings for movieshub project.
-"""
 
 from pathlib import Path
 import os
+import re
+import logging
 from dotenv import load_dotenv
 import dj_database_url
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Always load .env for local development
 load_dotenv(BASE_DIR / ".env")
+logger.debug("Loaded environment from %s", BASE_DIR / ".env")
 
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
@@ -37,9 +36,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not SECRET_KEY and not DEBUG:
-    raise ValueError(
-        "SECRET_KEY environment variable is required."
-    )
+    raise ValueError("SECRET_KEY environment variable is required.")
 
 if not SECRET_KEY:
     SECRET_KEY = "django-insecure-dev-only-key"
@@ -57,7 +54,6 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
-
 # --------------------------------------------------
 # APPLICATIONS
 # --------------------------------------------------
@@ -74,7 +70,6 @@ INSTALLED_APPS = [
 
     # Local Apps
     'coremovieshub',
-    
 ]
 
 # --------------------------------------------------
@@ -113,7 +108,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'movieshub.wsgi.application'
 
-
 # --------------------------------------------------
 # DATABASE SETUP
 # --------------------------------------------------
@@ -127,12 +121,10 @@ if DATABASE_URL:
             ssl_require=True,
         )
     }
-
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
     DATABASES["default"]["OPTIONS"] = {
         "sslmode": "require",
     }
-
 else:
     DATABASES = {
         "default": {
@@ -140,8 +132,7 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-    
-    
+
 # --------------------------------------------------
 # CUSTOM USER MODEL
 # --------------------------------------------------
@@ -176,9 +167,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # INTERNATIONALIZATION
 # --------------------------------------------------
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'Asia/Kolkata'
-
 USE_I18N = True
 USE_TZ = True
 
@@ -186,10 +175,7 @@ USE_TZ = True
 # STATIC FILES
 # --------------------------------------------------
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
-
+STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # --------------------------------------------------
@@ -223,7 +209,6 @@ MEDIA_URL = (
 # --------------------------------------------------
 # DJANGO 6 STORAGE SETTINGS
 # --------------------------------------------------
-
 if AWS_STORAGE_BUCKET_NAME:
     STORAGES = {
         "default": {
@@ -256,7 +241,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # --------------------------------------------------
 # CACHE
 # --------------------------------------------------
-
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -267,23 +251,16 @@ CACHES = {
 # --------------------------------------------------
 # TELEGRAM BOT
 # --------------------------------------------------
-
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-
 if not DEBUG and not TELEGRAM_BOT_TOKEN:
-    raise ValueError(
-        "TELEGRAM_BOT_TOKEN environment variable is required."
-    )
-    
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required.")
 
+TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
 if TELEGRAM_CHANNEL_ID:
     try:
         TELEGRAM_CHANNEL_ID = int(TELEGRAM_CHANNEL_ID)
     except ValueError:
-        raise ValueError(
-            "TELEGRAM_CHANNEL_ID must be a valid Telegram chat ID."
-        )
+        raise ValueError("TELEGRAM_CHANNEL_ID must be a valid Telegram chat ID.")
 else:
     TELEGRAM_CHANNEL_ID = None
 
@@ -294,10 +271,7 @@ TELEGRAM_BOT_USERNAME = os.getenv(
 
 TELEGRAM_ADMIN_IDS = [
     int(x)
-    for x in os.getenv(
-        "TELEGRAM_ADMIN_IDS",
-        ""
-    ).split(",")
+    for x in os.getenv("TELEGRAM_ADMIN_IDS", "").split(",")
     if x.strip()
 ]
 
@@ -305,52 +279,31 @@ CSRF_TRUSTED_ORIGINS = [
     "https://movies-hub-6dhp.onrender.com",
 ]
 
-TELEGRAM_SECRET = os.getenv(
-    "TELEGRAM_SECRET",
-    ""
-)
-
+TELEGRAM_SECRET = os.getenv("TELEGRAM_SECRET", "")
 if not DEBUG and not TELEGRAM_SECRET:
-    raise ValueError(
-        "TELEGRAM_SECRET environment variable is required."
-    )
-    
+    raise ValueError("TELEGRAM_SECRET environment variable is required.")
+
 # Render Proxy Support
-SECURE_PROXY_SSL_HEADER = (
-    "HTTP_X_FORWARDED_PROTO",
-    "https",
-)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # --------------------------------------------------
 # BASE URL
 # --------------------------------------------------
-
-BASE_URL = os.getenv(
-    "BASE_URL",
-    "https://movies-hub-6dhp.onrender.com"
-)
+BASE_URL = os.getenv("BASE_URL", "https://movies-hub-6dhp.onrender.com")
 
 # Cookie Security
 SESSION_COOKIE_HTTPONLY = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
-
-# CSRF
 CSRF_COOKIE_HTTPONLY = False
-
-# Referrer Policy
 SECURE_REFERRER_POLICY = "same-origin"
-
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
 # --------------------------------------------------
 # MAIN CHANNEL
 # --------------------------------------------------
-
 MAIN_CHANNEL_ID = os.getenv("MAIN_CHANNEL_ID", "").strip()
-
 if MAIN_CHANNEL_ID:
     try:
         MAIN_CHANNEL_ID = int(MAIN_CHANNEL_ID)
@@ -365,68 +318,69 @@ else:
         logger.warning("MAIN_CHANNEL_ID is not configured.")
         MAIN_CHANNEL_ID = None
 
-
 # --------------------------------------------------
 # Security Improvements
 # --------------------------------------------------
-
 SECURE_SSL_REDIRECT = not DEBUG
-
 SESSION_COOKIE_SECURE = not DEBUG
-
 CSRF_COOKIE_SECURE = not DEBUG
-
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
-
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-
 SECURE_HSTS_PRELOAD = not DEBUG
-
 X_FRAME_OPTIONS = "DENY"
 
 # --------------------------------------------------
 # EMAIL CONFIGURATION
 # --------------------------------------------------
-
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-
 EMAIL_TIMEOUT = 30
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or "noreply@movieshub.com"
 
-# --------------------------------------------------
-# API KEY
-# --------------------------------------------------
+# ==================================================
+# EXTERNAL API CONFIGURATION
+# ==================================================
 
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+# ---- TMDB ----
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
+# Validate and log
 if not TMDB_API_KEY:
-    logger.warning(
-        "TMDB_API_KEY is not configured. TMDB metadata lookup is disabled."
-    )
-    
-TMDB_BASE_URL = os.getenv(
-    "TMDB_BASE_URL",
-    "https://api.themoviedb.org/3"
-)
+    if DEBUG:
+        logger.warning("TMDB_API_KEY not found. Metadata lookup is disabled.")
+    else:
+        raise ValueError("TMDB_API_KEY environment variable is required.")
+else:
+    # Basic format check (32 hex chars)
+    if not re.fullmatch(r"[A-Fa-f0-9]{32}", TMDB_API_KEY):
+        logger.warning("TMDB_API_KEY format looks unusual (expected 32 hex characters).")
+    # Log safely (only first 4 chars)
+    logger.info("TMDB API key loaded (%s****)", TMDB_API_KEY[:4])
 
-TVMAZE_BASE_URL = os.getenv(
-    "TVMAZE_BASE_URL",
-    "https://api.tvmaze.com"
-)
+TMDB_BASE_URL = os.getenv("TMDB_BASE_URL", "https://api.themoviedb.org/3")
+TMDB_BASE_URL = TMDB_BASE_URL.rstrip("/")
+TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p"
 
-JIKAN_BASE_URL = os.getenv(
-    "JIKAN_BASE_URL",
-    "https://api.jikan.moe/v4"
-)
+# ---- TVMaze ----
+TVMAZE_BASE_URL = os.getenv("TVMAZE_BASE_URL", "https://api.tvmaze.com")
+TVMAZE_BASE_URL = TVMAZE_BASE_URL.rstrip("/")
 
-ANILIST_URL = os.getenv(
-    "ANILIST_URL",
-    "https://graphql.anilist.co"
-)
+# ---- Jikan ----
+JIKAN_BASE_URL = os.getenv("JIKAN_BASE_URL", "https://api.jikan.moe/v4")
+JIKAN_BASE_URL = JIKAN_BASE_URL.rstrip("/")
+
+# ---- AniList ----
+ANILIST_URL = os.getenv("ANILIST_URL", "https://graphql.anilist.co")
+ANILIST_URL = ANILIST_URL.rstrip("/")
+
+# ---- Optional: Log that all API base URLs are ready ----
+logger.debug("TMDB base URL: %s", TMDB_BASE_URL)
+logger.debug("TMDB image base URL: %s", TMDB_IMAGE_BASE_URL)
+logger.debug("TVMaze base URL: %s", TVMAZE_BASE_URL)
+logger.debug("Jikan base URL: %s", JIKAN_BASE_URL)
+logger.debug("AniList URL: %s", ANILIST_URL)
+

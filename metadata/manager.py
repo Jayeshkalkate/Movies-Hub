@@ -30,7 +30,7 @@ from typing import Optional, Dict, Any, Callable, List, Tuple
 # Adjust imports to match your project structure.
 # If any module is missing, define a stub or install the required package.
 # ---------------------------------------------------------------------
-from .extractor import extract, ExtractedContent
+from .extractor import extract, ExtractedContent          # changed from extractor2
 from .tmdb_cache import save_metadata, find_by_title
 from .detector import detect, ContentType, detect_languages
 from .formatter import (
@@ -101,15 +101,6 @@ class Manager:
         format_jikan_fn: Jikan formatter function.
         format_anilist_fn: AniList formatter function.
     """
-
-    # Provider order – we query all, but scoring decides the best.
-    PROVIDER_CHAIN = [
-        "tmdb_movie",
-        "tmdb_tv",
-        "anilist",
-        "jikan",
-        "tvmaze",
-    ]
 
     def __init__(
         self,
@@ -222,11 +213,23 @@ class Manager:
 
         if provider_type == "tmdb_movie":
             logger.info("Searching TMDB | title=%s | year=%s", title, year)
-            raw_response = self.tmdb_client.search_movie(title, year=year)
+            # Use the smarter search that cleans the title internally
+            raw_response = self.tmdb_client.search_movie_from_text(title, year=year)
             results = raw_response.get("results", [])
+            
             if results:
                 first = results[0]
-                formatted = self.format_tmdb_fn(first, content_type="movie")
+                
+                movie_id = first.get("id")
+                if not movie_id:
+                    return None
+
+                details = self.tmdb_client.get_movie(movie_id)
+                
+                formatted = self.format_tmdb_fn(
+                    details,
+                    content_type="movie",
+                )
             else:
                 logger.debug(f"No TMDb movie results for '{title}'")
                 return None
@@ -237,7 +240,17 @@ class Manager:
             results = raw_response.get("results", [])
             if results:
                 first = results[0]
-                formatted = self.format_tmdb_fn(first, content_type="tv")
+                
+                tv_id = first.get("id")
+                if not tv_id:
+                    return None
+
+                details = self.tmdb_client.get_tv(tv_id)
+                
+                formatted = self.format_tmdb_fn(
+                    details,
+                    content_type="tv",
+                )
             else:
                 logger.debug(f"No TMDb TV results for '{title}'")
                 return None
@@ -305,6 +318,7 @@ class Manager:
             - Content type match (0.15)
             - Language match (0.10)
             - Popularity / vote average (0.05)
+            - Completeness bonus (up to 0.2) for having poster, backdrop, overview, runtime.
 
         Returns:
             float: Score between 0 and 1.
@@ -354,8 +368,74 @@ class Manager:
             except (TypeError, ValueError):
                 pass
 
+        # 6. Completeness bonus (up to 0.2) - prefer results with more filled fields
+        #    Fields: poster, backdrop, overview, runtime
+        completeness = 0.0
+        if metadata.get("poster"):
+            completeness += 0.05
+        if metadata.get("backdrop"):
+            completeness += 0.05
+        if metadata.get("overview"):
+            completeness += 0.05
+        if metadata.get("runtime") is not None:
+            completeness += 0.05
+        score += completeness
+
         logger.debug(f"Score for {metadata.get('_provider')}: {score:.3f}")
         return score
+
+    # ---------- Helper: clean and validate metadata ----------
+    def _clean_metadata(self, metadata: Dict[str, Any], extracted: ExtractedContent) -> Dict[str, Any]:
+        """
+        Normalize, validate, and set defaults for critical fields.
+        """
+        # Normalize title
+        if "title" in metadata:
+            metadata["title"] = (metadata["title"] or "").strip()
+
+        # Ensure required fields exist with defaults
+        metadata.setdefault("poster", "")
+        metadata.setdefault("backdrop", "")
+        metadata.setdefault("overview", "")
+        metadata.setdefault("runtime", None)
+        metadata.setdefault("genres", [])
+        metadata.setdefault("vote_average", None)
+        metadata.setdefault("release_date", None)
+
+        # Clean overview: remove HTML and excessive whitespace
+        if metadata.get("overview"):
+            overview = metadata["overview"]
+            overview = re.sub(r"<[^>]+>", "", overview)   # strip HTML tags
+            overview = re.sub(r"\s+", " ", overview).strip()
+            metadata["overview"] = overview
+
+        # Fallback overview to extracted title if empty
+        if not metadata.get("overview") and extracted.title:
+            metadata["overview"] = extracted.title
+
+        # Normalize runtime: ensure it's a positive integer
+        runtime = metadata.get("runtime")
+        try:
+            runtime = int(runtime)
+            if runtime <= 0:
+                runtime = None
+        except (TypeError, ValueError):
+            runtime = None
+        metadata["runtime"] = runtime
+
+        # Validate poster/backdrop URLs
+        for field in ("poster", "backdrop"):
+            url = metadata.get(field)
+            if url and not str(url).startswith(("http://", "https://")):
+                logger.warning("Invalid %s URL: %s", field, url)
+                metadata[field] = ""
+
+        # Validate release_date: must be at least 4 characters (YYYY)
+        release = metadata.get("release_date")
+        if release and len(str(release)) < 4:
+            metadata["release_date"] = None
+
+        return metadata
 
     # ---------- Fetch from all providers and pick best ----------
     def _fetch_and_cache(
@@ -390,26 +470,37 @@ class Manager:
         else:
             logger.debug(f"Normalized title for search: '{search_title}' (original: '{title}')")
 
-        logger.info(f"Fetching '{title}' (detected as {content_type.value}) "
-                    f"from {len(self.PROVIDER_CHAIN)} providers")
+        # ========== STEP 2: Dynamic provider selection based on content type ==========
+        providers = []
+
+        if content_type == ContentType.MOVIE:
+            providers = ["tmdb_movie"]
+        elif content_type == ContentType.TV:
+            providers = ["tmdb_tv", "tvmaze"]
+        elif content_type == ContentType.ANIME:
+            providers = ["anilist", "jikan"]
+        else:
+            # Fallback: try movie and TV (TMDB covers most)
+            providers = ["tmdb_movie", "tmdb_tv"]
+
+        logger.info(
+            f"Fetching '{title}' (detected as {content_type.value}) "
+            f"from {len(providers)} provider(s): {', '.join(providers)}"
+        )
 
         candidates = []
 
-        for provider in self.PROVIDER_CHAIN:
+        for provider in providers:
             try:
-                logger.debug(f"Querying {provider}...")
-                metadata = self._search_and_format(provider, search_title, year)
-                if metadata and metadata.get("external_id"):
-                    # Compute score for this candidate
-                    metadata["_score"] = self._compute_score(metadata, extracted, search_title)
-                    candidates.append(metadata)
-                else:
-                    logger.debug(f"{provider} returned no valid result")
-            except (TMDbError, TVMazeError, JikanError, AniListError) as e:
-                logger.warning(f"{provider} failed: {e}")
-                continue
+                result = self._search_and_format(provider, search_title, year)
+                if result:
+                    # Compute score
+                    score = self._compute_score(result, extracted, search_title)
+                    result["_score"] = score
+                    candidates.append(result)
+                    logger.debug(f"Added {provider} result with score {score:.3f}")
             except Exception as e:
-                logger.error(f"Unexpected error from {provider}: {e}")
+                logger.warning(f"Provider {provider} failed for '{search_title}': {e}")
                 continue
 
         if not candidates:
@@ -421,24 +512,27 @@ class Manager:
         best_score = best.get("_score", 0.0)
         best_provider = best.get("_provider", "unknown")
 
-        # --- Improved logging after choosing the best match ---
+        # Clean and validate the metadata before caching
+        best = self._clean_metadata(best, extracted)
+
+        # Log important fields
         logger.info(
-            "Matched TMDB | %s (%s) | score=%s",
+            "Matched %s | %s (%s) | score=%.3f | poster=%s backdrop=%s runtime=%s overview=%d chars",
+            best_provider,
             best.get("title"),
             best.get("external_id"),
             best_score,
+            bool(best.get("poster")),
+            bool(best.get("backdrop")),
+            best.get("runtime"),
+            len(best.get("overview") or ""),
         )
-
-        # Optional: if best_score is very low, we might still return it,
-        # but we could add a threshold if needed.
 
         # Cache it (upsert by telegram_file_id if provided)
         try:
-            # Add telegram_file_id to metadata for upsert
             if telegram_file_id:
                 best["telegram_file_id"] = telegram_file_id
-            # --- Improved logging before saving ---
-            logger.info("Caching TMDB %s", best.get("external_id"))
+            logger.info("Caching metadata id=%s title=%s", best.get("external_id"), best.get("title"))
             self.save_metadata_fn(best, telegram_file_id=telegram_file_id)
         except Exception as e:
             logger.exception(f"Failed to cache metadata: {e}")
@@ -473,6 +567,10 @@ class Manager:
         else:
             search_text = caption
             logger.info(f"Processing caption: {caption[:100]}...")
+
+        # ---- DEBUG LOG: raw text ----
+        logger.info("=" * 50)
+        logger.info("RAW = %s", search_text)
 
         # Step 1: Try extraction on multiple variants
         variants = self._get_caption_variants(search_text)
@@ -509,6 +607,10 @@ class Manager:
         if not extracted or not extracted.title:
             logger.warning("No title extracted from any text variant")
             return None
+
+        # ---- DEBUG LOG: extracted data ----
+        logger.info("TITLE = %s", extracted.title)
+        logger.info("YEAR = %s", extracted.year)
 
         # Step 2: Enhance with language detection from the full search_text
         if not extracted.languages:
@@ -561,6 +663,8 @@ class Manager:
 
         if metadata:
             logger.info(f"Successfully retrieved metadata for '{extracted.title}'")
+            # ---- DEBUG LOG: final metadata ----
+            logger.info("METADATA = %s", metadata)
             return metadata
         else:
             logger.warning(f"No metadata found for '{extracted.title}' after all attempts")

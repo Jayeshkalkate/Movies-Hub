@@ -1,35 +1,48 @@
 {% extends "base.html" %}
+{% load static humanize %}
+
 {% block content %}
 <div class="container mt-4">
-  
-  <!-- Banner (if banner_url exists) -->
-  {% if movie.banner %}
-  <div class="mb-4 rounded-4 overflow-hidden" 
-       style="height: 300px; background-image: url('{{ movie.banner }}'); 
-              background-size: cover; background-position: center;">
-    <div class="d-flex align-items-end h-100" 
-         style="background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);">
-      <div class="p-4 text-white">
-        <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
+
+  <!-- Banner (if banner_url exists) else poster as fallback -->
+  <div class="mb-4 rounded-4 overflow-hidden" style="height: 300px; position: relative;">
+    {% if movie.banner %}
+      <div style="height: 100%; background-image: url('{{ movie.banner }}'); background-size: cover; background-position: center;">
+    {% elif movie.poster %}
+      <div style="height: 100%; background-image: url('{{ movie.poster }}'); background-size: cover; background-position: center; filter: blur(8px) brightness(0.6); transform: scale(1.05);">
+    {% else %}
+      <div style="height: 100%; background: linear-gradient(135deg, #1a1a2e, #16213e);">
+    {% endif %}
+      <div class="d-flex align-items-end h-100" style="background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);">
+        <div class="p-4 text-white w-100">
+          <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
+          {% if movie.year %}
+            <p class="lead mb-0">{{ movie.year }}</p>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>
-  {% endif %}
 
   <div class="row">
     <div class="col-lg-4 mb-4">
       <!-- Movie Poster -->
       <div class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top" style="top: 20px">
         {% if movie.poster %}
-          <img src="{{ movie.poster }}" 
-               alt="{{ movie.title }}" 
-               class="card-img-top img-fluid" 
-               style="object-fit: cover"
-               onerror="this.onerror=null; this.src='https://via.placeholder.com/500x750?text=No+Poster';">
+          <img src="{{ movie.poster }}"
+               alt="{{ movie.title }}"
+               class="card-img-top img-fluid"
+               style="object-fit: cover; min-height: 300px;"
+               loading="lazy"
+               decoding="async"
+               onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}';">
         {% else %}
-          <img src="https://via.placeholder.com/500x750?text=No+Poster" 
-               alt="No poster" 
-               class="card-img-top">
+          <img src="{% static 'images/no-poster.jpg' %}"
+               alt="No poster available"
+               class="card-img-top img-fluid"
+               style="object-fit: cover; min-height: 300px;"
+               loading="lazy"
+               decoding="async">
         {% endif %}
         <div class="card-body bg-light text-center">
           <small class="text-muted">Poster</small>
@@ -38,13 +51,6 @@
     </div>
 
     <div class="col-lg-8">
-      <!-- Title & basic info (if no banner, show title here) -->
-      {% if not movie.banner %}
-      <div class="mb-4">
-        <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
-      </div>
-      {% endif %}
-
       <!-- Badges -->
       <div class="d-flex flex-wrap gap-2 mb-3">
         {% if movie.category %}
@@ -64,11 +70,11 @@
         {% endif %}
         {% if movie.rating %}
         <span class="badge bg-warning text-dark fs-6 px-3 py-2">
-          <i class="bi bi-star-fill"></i> {{ movie.rating }}/10
+          <i class="bi bi-star-fill"></i> {{ movie.rating|floatformat:1 }}/10
         </span>
         {% endif %}
         <span class="badge bg-primary fs-6 px-3 py-2">
-          <i class="bi bi-eye"></i> {{ movie.views }} views
+          <i class="bi bi-eye"></i> {{ movie.views|intcomma }} views
         </span>
       </div>
 
@@ -79,7 +85,7 @@
           <h5 class="mb-0"><i class="bi bi-info-circle"></i> Synopsis</h5>
         </div>
         <div class="card-body">
-          <p class="mb-0">{{ movie.overview|default:movie.description|linebreaks }}</p>
+          <p class="mb-0">{{ movie.overview|default_if_none:movie.description|default:"No synopsis available."|linebreaks }}</p>
         </div>
       </div>
       {% endif %}
@@ -110,24 +116,24 @@
               </tr>
               <tr>
                 <th>Total Views</th>
-                <td>{{ movie.views }}</td>
+                <td>{{ movie.views|intcomma }}</td>
               </tr>
               {% if movie.release_date %}
               <tr>
                 <th>Release Date</th>
-                <td>{{ movie.release_date }}</td>
+                <td>{{ movie.release_date|date:"F j, Y" }}</td>
               </tr>
               {% endif %}
               {% if movie.rating %}
               <tr>
                 <th>TMDB Rating</th>
-                <td>⭐ {{ movie.rating }}/10</td>
+                <td>⭐ {{ movie.rating|floatformat:1 }}/10</td>
               </tr>
               {% endif %}
               {% if movie.duration %}
               <tr>
                 <th>Duration</th>
-                <td>{{ movie.duration }} min</td>
+                <td>{{ movie.duration|format_duration }}</td>
               </tr>
               {% endif %}
             </tbody>

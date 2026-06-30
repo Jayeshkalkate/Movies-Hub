@@ -18,6 +18,7 @@ import re
 import unicodedata
 import logging
 from typing import Optional, List, Tuple, Dict, Any, Set
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -118,20 +119,33 @@ NOISE_TAGS = [
     "AMZN", "NF", "DSNP", "HMAX", "HBO", "AppleTV+",
     # More generic
     "WEBRip", "WEBDL", "BluRay", "BDRip", "DVDRip",
+    # Additional quality/release flags (from user suggestion)
+    "HQ", "HQRip", "Proper", "TRUE", "Extended", "Uncut",
+    "Director's Cut", "Final", "Extended Cut", "BluRay REMUX",
+    "WEB", "WEB-HD", "WEBHD", "HD", "UHD", "SDR",
+    "REMASTERED", "REMASTER",
 ]
 
-# Year pattern (captures 4-digit year)
+# Year pattern (captures 4-digit year) – we'll use this to find the first occurrence
 YEAR_PATTERN = re.compile(r"\b((?:19|20)\d{2})\b")
 
-# Season/Episode patterns
+# Season/Episode patterns – expanded to support more formats
+SEASON_PATTERN = re.compile(r"(?i)(?:season|s)[\s\-_]*(\d{1,2})")
+EPISODE_PATTERN = re.compile(r"(?i)(?:episode|ep|e)[\s\-_]*(\d{1,2})")
 SEASON_EP_COMPACT = re.compile(r"(?i)s(\d{1,2})e(\d{1,2})")
 SEASON_EP_WORDS = re.compile(r"(?i)season\s*(\d{1,2})\s+episode\s*(\d{1,2})")
-SEASON_EP_PATTERN = re.compile(
-    r"(?i)(?:s|season)\s*(\d{1,2})\s*(?:e|episode)?\s*(\d{1,2})?"
-)
 
-# Quality patterns
-QUALITY_PATTERN = re.compile(r"\b(\d{3,4}p|4k|2160p|1080p|720p|480p|360p)\b", re.IGNORECASE)
+# Quality patterns – we'll use a priority list instead of numeric parsing
+QUALITY_PATTERN = re.compile(r"\b(4k|2160p|1440p|1080p|720p|480p|360p)\b", re.IGNORECASE)
+QUALITY_PRIORITY = [
+    "4K",
+    "2160p",
+    "1440p",
+    "1080p",
+    "720p",
+    "480p",
+    "360p",
+]
 
 # Language names (for extraction)
 LANGUAGE_SET = {
@@ -204,7 +218,6 @@ def clean_text(text: str) -> str:
     text = CODEC_PATTERN.sub("", text)
     # Remove all noise tags (case‑insensitive, word boundaries)
     for tag in NOISE_TAGS:
-        # For multi‑word tags, escape and use word boundaries
         text = re.sub(rf"\b{re.escape(tag)}\b", "", text, flags=re.IGNORECASE)
     # Remove leftover separators like '~', '+', '|', etc.
     text = re.sub(r"\s*[~+|/]\s*", " ", text)
@@ -218,57 +231,61 @@ def clean_text(text: str) -> str:
 # -------------------------------------------------------------------
 
 def extract_year(text: str) -> Optional[int]:
-    """Extract a 4-digit year (1900–2099) from text."""
+    """Extract the first 4-digit year (1900–current+2) from text."""
     if not text:
         return None
     match = YEAR_PATTERN.search(text)
     if match:
-        return int(match.group(1))
+        year = int(match.group(1))
+        current_year = datetime.now().year
+        if 1900 <= year <= current_year + 2:
+            return year
     return None
 
 
 def extract_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
-    """Extract season and episode numbers."""
+    """Extract season and episode numbers from text."""
     if not text:
         return None, None
+    # Try compact S01E02
     match = SEASON_EP_COMPACT.search(text)
     if match:
         return int(match.group(1)), int(match.group(2))
+    # Try "Season 1 Episode 2"
     match = SEASON_EP_WORDS.search(text)
     if match:
         return int(match.group(1)), int(match.group(2))
-    match = SEASON_EP_PATTERN.search(text)
-    if match:
-        season = int(match.group(1)) if match.group(1) else None
-        episode = int(match.group(2)) if match.group(2) else None
-        return season, episode
-    return None, None
+    # Separate season and episode
+    season = None
+    episode = None
+    s_match = SEASON_PATTERN.search(text)
+    if s_match:
+        season = int(s_match.group(1))
+    e_match = EPISODE_PATTERN.search(text)
+    if e_match:
+        episode = int(e_match.group(1))
+    return season, episode
 
 
 def extract_quality(text: str) -> Optional[str]:
-    """Extract the highest quality (e.g., '1080p', '4K') from text."""
+    """Extract the highest quality based on a priority list."""
     if not text:
         return None
     matches = QUALITY_PATTERN.findall(text)
     if not matches:
         return None
-
-    def parse_res(q: str) -> int:
-        q_lower = q.lower()
-        if q_lower == "4k":
-            return 2160
-        if q_lower.endswith("p"):
-            try:
-                return int(q_lower[:-1])
-            except ValueError:
-                return 0
-        return 0
-
-    return max(matches, key=parse_res)
+    # Normalize: e.g., "4k" -> "4K"
+    normalized = [m.upper() for m in matches]
+    # Return the first match in priority order
+    for q in QUALITY_PRIORITY:
+        if q in normalized:
+            return q
+    # Fallback: return the first found
+    return matches[0]
 
 
 def extract_languages(text: str) -> Optional[List[str]]:
-    """Extract language names from text (returns lowercase list)."""
+    """Extract language names from text (returns sorted lowercase list)."""
     if not text:
         return None
     found: Set[str] = set()
@@ -280,7 +297,7 @@ def extract_languages(text: str) -> Optional[List[str]]:
             continue
         if re.search(rf"\b{re.escape(lang)}\b", text, re.IGNORECASE):
             found.add(lang.lower())
-    return list(found) if found else None
+    return sorted(found) if found else None
 
 
 # -------------------------------------------------------------------
@@ -320,24 +337,48 @@ def parse_movie(text: str) -> Dict[str, Any]:
 
     # ----- STEP 1: Normalize raw input -----
     raw = text
-    # Replace common separators with spaces
-    raw = raw.replace("_", " ").replace(".", " ").replace("-", " ")
-    # Remove file extensions
-    raw = re.sub(r"\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|m2ts)$", "", raw, flags=re.IGNORECASE)
+
+    # Replace common separators with spaces (dots, underscores, dashes)
+    raw = re.sub(r"[._\-]+", " ", raw)
+
+    # Remove file extensions anywhere
+    raw = re.sub(r"\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|m2ts)\b", "", raw, flags=re.IGNORECASE)
+
     # Remove common prefixes like "File name:-"
     raw = re.sub(r"^file\s*name\s*[:=-]\s*", "", raw, flags=re.IGNORECASE)
+
+    # Remove Telegram promotional text
+    raw = re.sub(r"(?i)(join|follow|subscribe|powered by|uploaded by|admin|channel).*", "", raw)
+
     # Remove "Join @..." messages
     raw = re.sub(r"(?i)join\s*@\S+", "", raw)
     raw = re.sub(r"(?i)\bjoin\b.*", "", raw)
+
+    # Remove brackets/parentheses that don't contain a year (but keep parentheses with years)
+    # First, extract the year from the raw string to know if a bracket contains it
+    year_match = YEAR_PATTERN.search(raw)
+    if year_match:
+        year_str = year_match.group(1)
+        # Remove brackets that do NOT contain the year
+        raw = re.sub(r"\[[^\]]*\]", " ", raw)
+        raw = re.sub(r"\{[^}]*\}", " ", raw)
+        # Keep parentheses if they contain the year (we'll keep them)
+        # But we might want to keep them for now; later we'll remove the year itself.
+    else:
+        # If no year, remove all bracket content
+        raw = re.sub(r"\[[^\]]*\]", " ", raw)
+        raw = re.sub(r"\{[^}]*\}", " ", raw)
+        raw = re.sub(r"\([^)]*\)", " ", raw)   # remove all parentheses
+
     # Collapse multiple spaces
     raw = re.sub(r"\s+", " ", raw).strip()
 
-    # ----- STEP 2: Truncate after the last 4-digit year -----
-    year_matches = list(re.finditer(r"\b(19|20)\d{2}\b", raw))
-    if year_matches:
-        last_year = year_matches[-1]
+    # ----- STEP 2: Truncate after the FIRST 4-digit year -----
+    match = YEAR_PATTERN.search(raw)
+    if match:
         # Keep everything up to and including that year
-        raw = raw[:last_year.end()]
+        raw = raw[:match.end()]
+    # (We no longer use the last year, we use the first)
 
     # Now use this normalized text as the primary input
     text = raw
@@ -371,7 +412,9 @@ def parse_movie(text: str) -> Dict[str, Any]:
     # ----- STEP 5: Extract metadata (order matters) -----
     year = extract_year(cleaned)
     if year is not None:
+        # Remove the year itself (with possible surrounding brackets/parentheses)
         cleaned = re.sub(rf"\(?\b{year}\b\)?", "", cleaned)
+        cleaned = re.sub(rf"\[?\b{year}\b\]?", "", cleaned)
 
     season, episode = extract_season_episode(cleaned)
     # Remove season/episode patterns
@@ -399,8 +442,8 @@ def parse_movie(text: str) -> Dict[str, Any]:
         fallback = primary_line
         # Remove parenthesized/bracketed content
         fallback = re.sub(r"\([^)]*\)", "", fallback)
-        fallback = re.sub(r"\[[^)]*\]", "", fallback)
-        fallback = re.sub(r"\{[^)]*\}", "", fallback)
+        fallback = re.sub(r"\[[^\]]*\]", "", fallback)
+        fallback = re.sub(r"\{[^}]*\}", "", fallback)
         fallback = re.sub(r"\s+", " ", fallback).strip()
         if fallback:
             title = fallback
@@ -409,8 +452,20 @@ def parse_movie(text: str) -> Dict[str, Any]:
     if title:
         # Remove leading/trailing separators
         title = re.sub(r"^[\s\-_]+|[\s\-_]+$", "", title)
-        # Capitalize each word (optional, but keep as is)
-        # title = title.title()  # Uncomment if needed
+        # Remove trailing colon, dash, pipe, etc.
+        title = re.sub(r"[-_:|]+$", "", title).strip()
+        # Collapse multiple spaces
+        title = re.sub(r"\s{2,}", " ", title)
+        # Capitalize each word (using string.capwords)
+        import string
+        title = string.capwords(title)
+        # Remove duplicate consecutive words (case-insensitive)
+        words = title.split()
+        deduped = []
+        for w in words:
+            if not deduped or deduped[-1].lower() != w.lower():
+                deduped.append(w)
+        title = " ".join(deduped)
 
     return {
         "title": title or "",
@@ -429,7 +484,8 @@ def parse_movie(text: str) -> Dict[str, Any]:
 
 def extract_title(text: str) -> str:
     """Return the extracted title from text."""
-    return parse_movie(text).get("title", "")
+    title = parse_movie(text).get("title", "")
+    return title.strip()
 
 
 def extract_season(text: str) -> Optional[int]:
@@ -481,6 +537,10 @@ if __name__ == "__main__":
         "Kingdom (2019) S02 1080p NF WEB-DL DDP5.1 x264",
         "Stranger Things S04E01 4K HDR",
         "The Dark Knight 2008 1080p BluRay x264",
+        "Titanic 1997 Remastered 2023 1080p",
+        "Avatar Avatar 2009 720p",
+        "Season-2 Ep-08 of Game of Thrones 2012",
+        "Movie.Name.2024.1080p.x264.mkv",
     ]
 
     for cap in test_cases:

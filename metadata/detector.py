@@ -31,7 +31,7 @@ class ContentType(Enum):
 
 # ---------- ExtractedContent (if not imported) ----------
 try:
-    from extractor import ExtractedContent
+    from metadata.extractor2 import ExtractedContent
 except ImportError:
     @dataclass
     class ExtractedContent:
