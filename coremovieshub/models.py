@@ -156,6 +156,8 @@ class TMDBMovie(models.Model):
         blank=True,
         db_index=True,
     )
+    
+    last_updated = models.DateTimeField(auto_now=True)  
 
     backdrop_path = models.TextField(
         blank=True,

@@ -29,7 +29,7 @@ MoviesHub{% endblock %} {% block content %}
         <div class="position-relative">
           {% if movie.poster %}
           <img
-            src="{{ movie.poster.url }}"
+            src="{{ movie.poster }}"
             class="card-img-top"
             alt="{{ movie.title }}"
             style="height: 280px; object-fit: cover"
@@ -62,8 +62,13 @@ MoviesHub{% endblock %} {% block content %}
             {{ movie.title }}
           </h5>
           <p class="card-text text-muted small mb-3">
-            {{ movie.description|truncatewords:12|default:"No description
-            available." }}
+             {% if movie.overview %}
+                {{ movie.overview|truncatewords:12 }}
+             {% elif movie.description %}
+                {{ movie.description|truncatewords:12 }}
+             {% else %}
+                No description available.
+             {% endif %}
           </p>
           <div class="mb-2">
             {% if movie.year %}

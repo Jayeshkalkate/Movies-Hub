@@ -65,11 +65,11 @@
                             <td>{{ movie.id }}</td>
                             <td>
                                 {% if movie.poster %}
-                                    <img src="{{ movie.poster.url }}" alt="{{ movie.title }}"
+                                    <img src="{{ movie.poster }}" alt="{{ movie.title }}"
                                          class="img-thumbnail rounded" width="60"
                                          style="object-fit: cover; height: 80px; cursor: pointer;"
                                          data-bs-toggle="modal" data-bs-target="#posterModal"
-                                         data-bs-img="{{ movie.poster.url }}" data-bs-title="{{ movie.title }}">
+                                         data-bs-img="{{ movie.poster }}" data-bs-title="{{ movie.title }}">
                                 {% else %}
                                     <span class="text-muted">No poster</span>
                                 {% endif %}

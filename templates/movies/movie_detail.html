@@ -104,7 +104,8 @@
               </tr>
               <tr>
                 <th>Category</th>
-                <td>{{ movie.category.name|default:"—" }}</td>
+                {% comment %} {% if movie.category %} {% endcomment %}
+                <td>{{ movie.category.name }}</td>
               </tr>
               <tr>
                 <th>Year</th>

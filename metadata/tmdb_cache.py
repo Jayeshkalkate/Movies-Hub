@@ -4,7 +4,8 @@ Cache layer using TMDBMovie model with optional Telegram file ID deduplication.
 
 This module provides:
     - normalize_title: consistent title normalization
-    - find_by_title: retrieve cached content by normalized title
+    - find_by_title: retrieve cached content by normalized title,
+                     with automatic staleness check (refresh after expiry)
     - find_by_telegram_file_id: retrieve cached content by Telegram file ID
     - save_metadata: upsert metadata into TMDBMovie and, if telegram_file_id
                      is provided, link it to the movie via TelegramFile
@@ -16,15 +17,22 @@ All operations are atomic and fully logged.
 
 import logging
 import re
+import os
 from typing import Optional, Dict, Any, List
+from datetime import timedelta
 
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 
 # Import the real models from your project
-from coremovieshub.models import TMDBMovie, TelegramFile as _TelegramFile
+from coremovieshub.models import TMDBMovie
 
 logger = logging.getLogger(__name__)
+
+# ---------- Configuration ----------
+# Cache expiry in days (can be overridden via env var)
+CACHE_EXPIRY_DAYS = int(os.getenv("METADATA_CACHE_EXPIRY_DAYS", 30))
 
 
 # ---------- Normalization ----------
@@ -54,13 +62,16 @@ def find_by_title(
     """
     Retrieve cached metadata by normalized title.
 
+    If the cached record is older than CACHE_EXPIRY_DAYS, it is considered
+    stale and treated as a cache miss (returns None) so the caller will refresh it.
+
     Args:
         title: The title to search for.
         content_type: Optional filter (ignored for TMDBMovie, but kept for compatibility).
         year: Optional year filter (matches release_date__year if release_date is a DateField).
 
     Returns:
-        Optional[Dict[str, Any]]: Metadata dict or None.
+        Optional[Dict[str, Any]]: Metadata dict or None (if not found or stale).
     """
     normalized = normalize_title(title)
     logger.debug(f"Searching TMDB cache for '{title}' (normalized='{normalized}')")
@@ -70,11 +81,19 @@ def find_by_title(
     if year is not None:
         queryset = queryset.filter(release_date__year=year)
 
-    # content_type is not stored on TMDBMovie; we ignore it.
     movie = queryset.order_by("-vote_average").first()
 
     if not movie:
         logger.info(f"Cache miss: '{title}' not found in TMDB")
+        return None
+
+    # ---- Staleness check ----
+    now = timezone.now()
+    if movie.last_updated and (now - movie.last_updated).days > CACHE_EXPIRY_DAYS:
+        logger.info(
+            f"Cache stale for '{title}' (updated at {movie.last_updated}, "
+            f"older than {CACHE_EXPIRY_DAYS} days). Treating as miss."
+        )
         return None
 
     logger.info(f"Cache hit: found '{movie.title}' (ID {movie.tmdb_id})")
@@ -100,9 +119,13 @@ def find_by_title(
     }
 
 
-def find_by_telegram_file_id(telegram_file_id: str) -> Optional[Dict[str, Any]]:
+# def find_by_telegram_file_id(telegram_file_id: str) -> Optional[Dict[str, Any]]:
+def find_by_telegram_file_id(telegram_file_id):
+    
     """
     Retrieve cached metadata by Telegram file ID.
+
+    The same staleness check is applied via find_by_title.
 
     Args:
         telegram_file_id: The unique Telegram file ID.
@@ -114,7 +137,7 @@ def find_by_telegram_file_id(telegram_file_id: str) -> Optional[Dict[str, Any]]:
         tg_file = _TelegramFile.objects.get(telegram_file_id=telegram_file_id)
         movie = tg_file.movie
         logger.info(f"Cache hit by telegram_file_id '{telegram_file_id}'")
-        # Reuse the conversion logic
+        # Reuse the conversion logic; this will also check staleness
         return find_by_title(movie.title)
     except ObjectDoesNotExist:
         logger.info(f"Cache miss: telegram_file_id '{telegram_file_id}' not found")
@@ -129,7 +152,9 @@ def save_metadata(
     """
     Save (upsert) metadata into TMDBMovie and optionally link a Telegram file ID.
 
-    If a movie with the same tmdb_id exists, it is updated.
+    If a movie with the same tmdb_id exists, it is updated (which will also update
+    the `updated_at` field if the model has auto_now=True).
+
     If telegram_file_id is provided, a TelegramFile entry is created/updated
     pointing to the movie.
 
@@ -191,12 +216,12 @@ def save_metadata(
     logger.debug(f"TMDBMovie {'created' if created else 'updated'} (ID {movie.id})")
 
     # If telegram_file_id is provided, link it to this movie
-    if telegram_file_id:
-        tg_file, tg_created = _TelegramFile.objects.update_or_create(
-            telegram_file_id=telegram_file_id,
-            defaults={"movie": movie},
-        )
-        logger.debug(f"TelegramFile {'created' if tg_created else 'updated'} for '{telegram_file_id}'")
+    # if telegram_file_id:
+    #     tg_file, tg_created = _TelegramFile.objects.update_or_create(
+    #         telegram_file_id=telegram_file_id,
+    #         defaults={"movie": movie},
+    #     )
+        # logger.debug(f"TelegramFile {'created' if tg_created else 'updated'} for '{telegram_file_id}'")
 
     # Return the metadata dict (same as find_by_title would)
     return find_by_title(movie.title)  # reuse conversion
@@ -245,15 +270,15 @@ def update_metadata(
     if "title" in data and data["title"]:
         movie.title_normalized = normalize_title(data["title"])
 
-    movie.save()
+    movie.save()  # auto_now will update updated_at
     logger.info(f"Updated movie tmdb_id='{tmdb_id}'")
 
     # Update TelegramFile if provided
-    if telegram_file_id:
-        _TelegramFile.objects.update_or_create(
-            telegram_file_id=telegram_file_id,
-            defaults={"movie": movie},
-        )
+    # if telegram_file_id:
+    #     _TelegramFile.objects.update_or_create(
+    #         telegram_file_id=telegram_file_id,
+    #         defaults={"movie": movie},
+    #     )
 
     return find_by_title(movie.title)
 

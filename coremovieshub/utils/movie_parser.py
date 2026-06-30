@@ -231,6 +231,28 @@ def clean_text(text: str) -> str:
 # -------------------------------------------------------------------
 # 4. EXTRACTION FUNCTIONS
 # -------------------------------------------------------------------
+# Instead of: title = string.capwords(title)
+# Use a custom title case that lowercases stop words (except the first word)
+
+STOP_WORDS = {
+    "a", "an", "the", "and", "or", "for", "nor", "but", "yet", "so",
+    "of", "on", "at", "to", "in", "with", "without", "by", "for", "from",
+    "up", "down", "off", "over", "under", "into", "onto", "upon"
+}
+
+def smart_title(s: str) -> str:
+    words = s.split()
+    if not words:
+        return ""
+    # Capitalize first word normally
+    result = [words[0].capitalize()]
+    for w in words[1:]:
+        if w.lower() in STOP_WORDS:
+            result.append(w.lower())
+        else:
+            result.append(w.capitalize())
+    return " ".join(result)
+
 
 def extract_year(text: str) -> Optional[int]:
     """Extract the first 4-digit year (1900–current+2) from text."""
@@ -434,8 +456,7 @@ def parse_movie(text: str) -> Dict[str, Any]:
         # Collapse multiple spaces
         title = re.sub(r"\s{2,}", " ", title)
         # Capitalize each word (using string.capwords)
-        import string
-        title = string.capwords(title)
+        title = smart_title(title)
         # Remove duplicate consecutive words (case-insensitive)
         words = title.split()
         deduped = []

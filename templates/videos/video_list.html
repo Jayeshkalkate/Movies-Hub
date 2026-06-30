@@ -65,7 +65,7 @@
                             {% if movie.poster %}
                                 <img src="{{ movie.poster }}" class="card-img-top" alt="{{ movie.title }}"
                                      style="height: 280px; object-fit: cover;"
-                                     onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=No+Poster';">
+                                     onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}';">
                             {% else %}
                                 <div class="bg-secondary text-white d-flex align-items-center justify-content-center"
                                      style="height: 280px;">

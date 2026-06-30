@@ -378,9 +378,26 @@ ANILIST_URL = os.getenv("ANILIST_URL", "https://graphql.anilist.co")
 ANILIST_URL = ANILIST_URL.rstrip("/")
 
 # ---- Optional: Log that all API base URLs are ready ----
+
 logger.debug("TMDB base URL: %s", TMDB_BASE_URL)
 logger.debug("TMDB image base URL: %s", TMDB_IMAGE_BASE_URL)
 logger.debug("TVMaze base URL: %s", TVMAZE_BASE_URL)
 logger.debug("Jikan base URL: %s", JIKAN_BASE_URL)
 logger.debug("AniList URL: %s", ANILIST_URL)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+        },
+    },
+}
 

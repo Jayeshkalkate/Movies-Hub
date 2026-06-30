@@ -9,13 +9,14 @@ Provides:
 
 import logging
 import difflib
-from datetime import datetime  # <-- added
+from datetime import datetime
 
 from django.utils.text import slugify
 from django.db.models import Q
 
 from coremovieshub.models import TMDBMovie
-from metadata.providers.tmdb import get_tmdb_client  # <-- added
+from metadata.providers.tmdb import get_tmdb_client
+from metadata.tmdb_cache import find_by_title, save_metadata   # <-- added
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,8 @@ TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 
 def search_movie_metadata(title, year=None):
     """
-    Search for movie metadata in local TMDBMovie cache.
+    Search for movie metadata in local TMDBMovie cache, with automatic refresh
+    if cached data is stale (> CACHE_EXPIRY_DAYS days old).
 
     Returns a dict with the following keys, or None if no match:
         - tmdb_id
@@ -73,8 +75,40 @@ def search_movie_metadata(title, year=None):
 
     movie = None
 
+    # ----- STEP 1: Use the unified cache lookup (with staleness check) -----
+    cached = find_by_title(title, year=year)
+    if cached:
+        # We have a valid, fresh cache entry. Build metadata from it.
+        # We'll still compute a confidence score based on the movie instance.
+        # But we need the actual movie instance to get additional fields like genres.
+        # So we retrieve it from the DB using the tmdb_id.
+        try:
+            movie = TMDBMovie.objects.get(tmdb_id=cached["external_id"])
+            movie._score = 1.0  # high confidence because it was an exact normalized match
+        except TMDBMovie.DoesNotExist:
+            # Should not happen, but fallback to using cached dict directly
+            movie = None
+            # We can construct a metadata dict directly from cached data
+            return {
+                "tmdb_id": cached["external_id"],
+                "poster": cached["poster"],
+                "banner": cached["backdrop"],
+                "overview": cached["overview"],
+                "rating": cached["rating"],
+                "release_date": cached["release_date"],
+                "runtime": cached["runtime"],
+                "duration": cached["runtime"],
+                "original_title": cached["original_title"],
+                "original_language": cached["language"],
+                "genres": cached["genres"],  # list
+                "status": cached["status"],
+                "confidence_score": 1.0,
+            }
+    # If no fresh cache entry, proceed to traditional queries
+    # (they may return stale entries but we will also add a staleness check below)
+
     # 1. Exact title + year
-    if year:
+    if not movie and year:
         candidates = TMDBMovie.objects.filter(
             title_normalized=normalized_title,
             release_date__year=year,
@@ -110,8 +144,6 @@ def search_movie_metadata(title, year=None):
 
     # 3. Similarity-based (≥0.80) – use prefix filter to reduce scan
     if not movie:
-        # Build a queryset that starts with the first few chars of normalized title
-        # (slugified so it's safe to use with startswith)
         prefix = normalized_title[:8]
         qs = TMDBMovie.objects.filter(
             Q(title_normalized__startswith=prefix)
@@ -119,15 +151,14 @@ def search_movie_metadata(title, year=None):
         if year:
             qs = qs.filter(release_date__year=year)
 
-        # If prefix filter returns too few, fallback to all (but with year filter)
         if not qs.exists() and year:
             qs = TMDBMovie.objects.filter(release_date__year=year)
         elif not qs.exists():
-            qs = TMDBMovie.objects.all()  # fallback to all if prefix yields nothing
+            qs = TMDBMovie.objects.all()
 
         best = None
         best_score = -1.0
-        for candidate in qs.iterator():  # efficient iteration
+        for candidate in qs.iterator():
             ratio = similarity(title, candidate.title)
             if ratio >= 0.80:
                 sc = ratio * 0.4 + score_movie(candidate, title, year) * 0.6
@@ -142,10 +173,22 @@ def search_movie_metadata(title, year=None):
                 movie.title, year, movie._score
             )
 
-    # ========== STEP 8: Cache miss → fetch from TMDB API ==========
+    # ----- Staleness check for any found movie -----
+    if movie:
+        # If the movie is stale, we ignore it and trigger a fresh fetch
+        from metadata.tmdb_cache import CACHE_EXPIRY_DAYS
+        from django.utils import timezone
+        if movie.last_updated and (timezone.now() - movie.last_updated).days > CACHE_EXPIRY_DAYS:
+            logger.info(
+                f"Found movie '{movie.title}' but cache is stale (updated {movie.last_updated}). "
+                "Refreshing from TMDB."
+            )
+            movie = None  # treat as miss
+
+    # ========== Cache miss or stale → fetch from TMDB API ==========
     if not movie:
         logger.info(
-            "Cache miss for '%s'. Fetching from TMDB...",
+            "Cache miss (or stale) for '%s'. Fetching from TMDB...",
             title,
         )
 
@@ -178,28 +221,27 @@ def search_movie_metadata(title, year=None):
                 except ValueError:
                     pass
 
-            # Save (or update) the movie in local cache
-            movie, _ = TMDBMovie.objects.update_or_create(
-                tmdb_id=details["id"],
-                defaults={
-                    "title": details.get("title") or "",
-                    "poster_path": details.get("poster_path") or "",
-                    "backdrop_path": details.get("backdrop_path") or "",
-                    "overview": details.get("overview") or "",
-                    "genres": ", ".join(
-                        g["name"] for g in details.get("genres", [])
-                    ),
-                    "release_date": release_date,
-                    "vote_average": details.get("vote_average"),
-                    "runtime": details.get("runtime"),
-                    "status": details.get("status") or "",
-                    "original_title": details.get("original_title") or "",
-                    "original_language": details.get("original_language") or "",
-                },
-            )
+            # Prepare metadata dict in the unified schema used by save_metadata
+            metadata = {
+                "external_id": details["id"],
+                "title": details.get("title") or "",
+                "overview": details.get("overview") or "",
+                "poster": details.get("poster_path") or "",
+                "backdrop": details.get("backdrop_path") or "",
+                "genres": [g["name"] for g in details.get("genres", [])],
+                "release_date": release_date.isoformat() if release_date else None,
+                "rating": details.get("vote_average"),
+                "runtime": details.get("runtime"),
+                "status": details.get("status") or "",
+                "original_title": details.get("original_title") or "",
+                "language": details.get("original_language") or "",
+            }
 
-            # Assign a high confidence score for the fetched result
-            movie._score = 1.0
+            # Save to cache (this will also update the updated_at timestamp)
+            saved = save_metadata(metadata)
+            # Retrieve the movie instance for building the final metadata dict
+            movie = TMDBMovie.objects.get(tmdb_id=details["id"])
+            movie._score = 1.0  # fresh fetch is most accurate
 
             logger.info(
                 "Fetched and saved TMDB movie: %s (%s)",
@@ -210,11 +252,10 @@ def search_movie_metadata(title, year=None):
             logger.exception("TMDB fetch failed: %s", e)
             return None
 
-    # ----- Continue with the existing code -----
+    # ----- Continue with the existing code to build metadata dict -----
     # (movie is now guaranteed to be an instance, either from cache or newly fetched)
 
     # ----- Strict year validation (optional) -----
-    # If a year was provided and the movie has a release date, enforce exact match.
     if year and movie.release_date:
         if movie.release_date.year != year:
             logger.debug("Year mismatch, discarding match for %s", movie.title)
@@ -238,13 +279,17 @@ def search_movie_metadata(title, year=None):
 
     release_date = movie.release_date  # already a date or None
 
-    # Ensure runtime is int
     runtime = None
     if movie.runtime is not None:
         try:
             runtime = int(movie.runtime)
         except (TypeError, ValueError):
             runtime = None
+
+    # Genres: convert comma-separated string to list
+    genres = []
+    if movie.genres:
+        genres = [g.strip() for g in movie.genres.split(",") if g.strip()]
 
     metadata = {
         "tmdb_id": movie.tmdb_id,
@@ -254,10 +299,10 @@ def search_movie_metadata(title, year=None):
         "rating": rating,
         "release_date": release_date,
         "runtime": runtime,
-        "duration": runtime,          # alias for convenience
+        "duration": runtime,
         "original_title": movie.original_title,
         "original_language": movie.original_language,
-        "genres": movie.genres,       # comma-separated string (list if stored as JSON)
+        "genres": genres,
         "status": movie.status,
         "confidence_score": getattr(movie, '_score', 0.0),
     }
@@ -292,8 +337,8 @@ def apply_metadata_to_movie(movie_instance, title, year=None):
         "overview": "overview",
         "rating": "rating",
         "release_date": "release_date",
-        "duration": "duration",      # or "runtime" if your model uses that
-        "runtime": "runtime",        # if you have both
+        "duration": "duration",
+        "runtime": "runtime",
         "original_title": "original_title",
         "original_language": "original_language",
         "genres": "genres",
