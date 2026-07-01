@@ -6,23 +6,53 @@ from .models import MembershipVerification
 
 logger = logging.getLogger(__name__)
 
-async def check_telegram_membership(user_telegram_id: int, chat_id: str) -> bool:
-    """
-    Asynchronously check if a user is a member of a Telegram channel.
-    """
+async def check_telegram_membership(user_telegram_id: int, chat_id: int) -> bool:
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMember"
-    params = {"chat_id": chat_id, "user_id": user_telegram_id}
-    
+
+    params = {
+        "chat_id": chat_id,
+        "user_id": user_telegram_id,
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+
+        async with httpx.AsyncClient(timeout=20) as client:
+
             response = await client.get(url, params=params)
+
+            response.raise_for_status()
+
             data = response.json()
-            if data.get("ok"):
-                status = data["result"].get("status")
-                return status in {"member", "administrator", "creator"}
-            return False
-    except Exception as e:
-        logger.error("Failed to check Telegram membership for user %s: %s", user_telegram_id, e)
+
+            logger.info("Telegram getChatMember response: %s", data)
+
+            if not data.get("ok"):
+
+                logger.error(
+                    "Telegram API Error: %s",
+                    data.get("description")
+                )
+
+                return False
+
+            status = data["result"]["status"]
+
+            logger.info(
+                "User %s status = %s",
+                user_telegram_id,
+                status
+            )
+
+            return status in (
+                "member",
+                "administrator",
+                "creator",
+            )
+
+    except Exception:
+
+        logger.exception("getChatMember failed")
+
         return False
 
 def generate_verification_code(user) -> str:

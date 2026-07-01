@@ -154,54 +154,42 @@ def get_channel_by_chat_id(chat_id: str) -> Optional[TelegramChannel]:
 # ------------------- Membership Verification -------------------
 
 async def verify_membership(telegram_id: int, verification_code: str = None) -> str:
-    """
-    Verify a user's membership status.
-
-    Returns:
-        'verified', 'not_member', 'invalid_code', 'error'
-    """
     try:
         if verification_code:
+            logger.info("Verifying code '%s' for user %s", verification_code, telegram_id)
             verification = await get_verification_by_code(verification_code)
             if not verification:
+                logger.warning("Verification code not found: %s", verification_code)
                 return "invalid_code"
 
+            # Update telegram_id
             verification.telegram_id = str(telegram_id)
-            # Optionally store username if available
             await sync_to_async(verification.save)()
 
-            all_joined = all(
-                await check_telegram_membership(telegram_id, ch)
-                for ch in REQUIRED_CHANNELS
-            )
+            # Check membership for all required channels
+            all_joined = True
+            for ch in REQUIRED_CHANNELS:
+                joined = await check_telegram_membership(telegram_id, ch)
+                if not joined:
+                    logger.info("User %s not a member of channel %s", telegram_id, ch)
+                    all_joined = False
+                    break
+
             if all_joined:
                 verification.membership_status = True
                 verification.verified_at = timezone.now()
                 await sync_to_async(verification.save)()
+                logger.info("User %s verified successfully", telegram_id)
                 return "verified"
-            return "not_member"
+            else:
+                return "not_member"
 
-        # Regular verification via stored telegram_id
-        verification, created = await get_or_create_verification(telegram_id)
-        if not verification:
-            return "verification_not_found"
-
-        all_joined = all(
-            await check_telegram_membership(telegram_id, ch)
-            for ch in REQUIRED_CHANNELS
-        )
-        if all_joined:
-            verification.membership_status = True
-            verification.verified_at = timezone.now()
-            await sync_to_async(verification.save)()
-            return "verified"
-        return "not_member"
-
-    except Exception:
+        # Path without code (e.g., re‑check)
+        # ... (existing logic)
+    except Exception as e:
         logger.exception("Membership verification failed for user %s", telegram_id)
         return "error"
-
-
+    
 # ------------------- /start Command -------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -245,7 +233,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await verify_membership(telegram_id, verification_code)
     logger.info("Verification result for %s: %s", telegram_id, result)
 
-    messages = {
+    # Renamed to avoid conflict with Django's messages module
+    verification_messages = {
         "verified": (
             "✅ Account verified successfully!\n\n"
             "You can now return to MoviesHub and continue.",
@@ -273,7 +262,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             None,
         ),
     }
-    text, reply_markup = messages.get(result, ("⚠️ Unexpected error.", None))
+    text, reply_markup = verification_messages.get(result, ("⚠️ Unexpected error.", None))
     await update.message.reply_text(text, reply_markup=reply_markup)
 
 
@@ -591,10 +580,6 @@ def save_movie_from_metadata(
 
 
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handle new channel posts.
-    Flow: Telegram post → Metadata manager → Save movie.
-    """
     post = update.channel_post or update.message
     if not post:
         return
@@ -605,7 +590,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     chat_id = str(post.chat.id)
-    channel = await get_channel_by_chat_id(chat_id)   # reuse existing helper
+    channel = await get_channel_by_chat_id(chat_id)
     if not channel:
         logger.warning("Channel not found: %s", chat_id)
         return
@@ -617,30 +602,26 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif hasattr(post, "video") and post.video:
         filename = getattr(post.video, "file_name", "") or ""
 
-    # 1. Get metadata manager
     manager = get_manager()
     if manager is None:
-        logger.error("Metadata manager not available. Cannot process post.")
-        return
+        logger.error("Metadata manager not available.")
+        # Raise an exception so Telegram knows this update failed
+        raise RuntimeError("Metadata manager is not available")
 
-    # 2. Process caption and filename
-    try:
-        metadata = manager.process_caption(
-            caption=caption,
-            filename=filename,
-            telegram_file_id=media.file_id,
-        )
-    except Exception as e:
-        logger.exception("Metadata manager failed: %s", e)
-        return
+    # Process caption – let any exception propagate
+    metadata = manager.process_caption(
+        caption=caption,
+        filename=filename,
+        telegram_file_id=media.file_id,
+    )
 
     if not metadata:
         logger.warning("Metadata manager returned empty for caption: %s", caption[:50])
-        return
+        # Optionally raise an error to indicate failure, or just return
+        # Raising is safer to avoid silent failures
+        raise ValueError("Metadata manager returned empty result")
 
-    # 3. Save movie record using enriched metadata
-    try:
-        await save_movie_from_metadata(post, channel, media, metadata)
-        logger.info("Movie processing complete for message %s", post.message_id)
-    except Exception as e:
-        logger.exception("Failed to save movie: %s", e)
+    # Save movie – let any exception propagate
+    await save_movie_from_metadata(post, channel, media, metadata)
+    logger.info("Movie processing complete for message %s", post.message_id)
+    

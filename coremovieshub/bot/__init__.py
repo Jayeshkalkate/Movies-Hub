@@ -30,6 +30,9 @@ from .handlers import (
     UPLOAD,
 )
 
+_application = None   # singleton instance
+
+
 def setup_bot():
     application = (
         ApplicationBuilder()
@@ -121,12 +124,14 @@ def setup_bot():
 
 def get_application():
     """
-    Create a fresh PTB Application.
+    Create or return a cached PTB Application instance.
     Prevents Render's 'Event loop is closed' error.
     """
-    app = setup_bot()
+    global _application
 
-    async_to_sync(app.initialize)()
+    if _application is None:
+        _application = setup_bot()
+        async_to_sync(_application.initialize)()
 
-    return app
+    return _application
 

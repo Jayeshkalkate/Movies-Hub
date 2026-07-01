@@ -18,7 +18,6 @@ from .telegram_utils import (
     check_telegram_membership
 )
 from django.core.mail import send_mail
-from django.contrib import messages
 from .forms import (
     TelegramMovieUploadForm,
     TelegramMovieEditForm,
@@ -48,7 +47,6 @@ from django.core.cache import cache
 import requests
 from telegram import Bot
 from django.http import StreamingHttpResponse
-# coremovieshub/views.py (add at the bottom)
 from django.http import HttpResponseRedirect
 import json
 from asgiref.sync import async_to_sync
@@ -58,6 +56,23 @@ from django.views.decorators.csrf import csrf_exempt
 from telegram import Update
 
 logger = logging.getLogger(__name__)
+
+# ------------------------------------------------------------
+# Bug #4 fix: Singleton Telegram application – created once
+# and reused across all webhook requests.
+# ------------------------------------------------------------
+_telegram_app = None
+
+def get_telegram_app():
+    """Return the singleton Telegram bot application."""
+    global _telegram_app
+    if _telegram_app is None:
+        _telegram_app = get_application()
+    return _telegram_app
+
+# ------------------------------------------------------------
+# Views
+# ------------------------------------------------------------
 
 @login_required
 def watch_movie(request, movie_id):
@@ -234,7 +249,6 @@ def telegram_webhook(request):
     """
     Telegram webhook endpoint.
     """
-
     logger.warning("🚀 WEBHOOK HIT")
 
     if request.method != "POST":
@@ -242,7 +256,6 @@ def telegram_webhook(request):
             "❌ Invalid method: %s",
             request.method
         )
-
         return JsonResponse(
             {"error": "Method not allowed"},
             status=405
@@ -256,7 +269,6 @@ def telegram_webhook(request):
         "🔑 Received Secret: %s",
         secret_token
     )
-
     logger.warning(
         "🔑 Expected Secret: %s",
         settings.TELEGRAM_SECRET
@@ -266,7 +278,6 @@ def telegram_webhook(request):
         logger.error(
             "❌ Secret token mismatch"
         )
-
         return JsonResponse(
             {"error": "Unauthorized"},
             status=403
@@ -286,20 +297,19 @@ def telegram_webhook(request):
             logger.warning(
                 "🎬 CHANNEL POST DETECTED!"
             )
-
             logger.warning(
                 "📢 Channel Info: %s",
                 data["channel_post"]["chat"]
             )
 
-        logger.warning(
-            "⚙️ INITIALISING APPLICATION"
-        )
+        # ----------------------------------------------------
+        # Bug #4 fix: Use the singleton application instance.
+        # No shutdown after processing.
+        # ----------------------------------------------------
+        app = get_telegram_app()
 
-        app = get_application()
-
         logger.warning(
-            "✅ APPLICATION READY"
+            "✅ APPLICATION READY (reused)"
         )
 
         update = Update.de_json(
@@ -311,21 +321,9 @@ def telegram_webhook(request):
             "🔄 PROCESSING UPDATE"
         )
 
-        try:
-            async_to_sync(
-                app.process_update
-            )(update)
-
-        finally:
-            try:
-                async_to_sync(
-                    app.shutdown
-                )()
-            except Exception as shutdown_error:
-                logger.warning(
-                    "⚠️ Application shutdown failed: %s",
-                    str(shutdown_error)
-                )
+        async_to_sync(
+            app.process_update
+        )(update)
 
         logger.warning(
             "✅ UPDATE PROCESSED SUCCESSFULLY"
@@ -340,7 +338,6 @@ def telegram_webhook(request):
             "❌ Webhook processing failed: %s",
             str(e)
         )
-
         return JsonResponse(
             {
                 "error": "Internal server error",
@@ -894,9 +891,6 @@ def check_verification(request):
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         return JsonResponse({'verified': verification.membership_status})
     
-    # # For manual check
-    # return render(request, 'telegram/check_status.html', {'verified': verification.membership_status})
-     
     # For manual check – just redirect back to verification page
     messages.warning(request, 'You are not verified yet. Please join the Telegram channel and verify.')
     return redirect('verify_telegram')
@@ -1069,3 +1063,4 @@ def join_channel(
             "movie": movie
         }
     )
+    
