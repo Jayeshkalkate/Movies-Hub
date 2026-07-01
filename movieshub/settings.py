@@ -176,7 +176,13 @@ USE_TZ = True
 # STATIC FILES
 # --------------------------------------------------
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+# STATICFILES_DIRS = [BASE_DIR / 'static']
+
+STATICFILES_DIRS = []
+
+STATIC_DIR = BASE_DIR / "static"
+if STATIC_DIR.exists():
+    STATICFILES_DIRS.append(STATIC_DIR)
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # --------------------------------------------------
@@ -256,14 +262,14 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not DEBUG and not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required.")
 
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
-if TELEGRAM_CHANNEL_ID:
+MOVIESHUB_MEMBERS = os.getenv("MOVIESHUB_MEMBERS", "").strip()
+if MOVIESHUB_MEMBERS:
     try:
-        TELEGRAM_CHANNEL_ID = int(TELEGRAM_CHANNEL_ID)
+        MOVIESHUB_MEMBERS = int(MOVIESHUB_MEMBERS)
     except ValueError:
-        raise ValueError("TELEGRAM_CHANNEL_ID must be a valid Telegram chat ID.")
+        raise ValueError("MOVIESHUB_MEMBERS must be a valid Telegram chat ID.")
 else:
-    TELEGRAM_CHANNEL_ID = None
+    MOVIESHUB_MEMBERS = None
 
 TELEGRAM_BOT_USERNAME = os.getenv(
     "TELEGRAM_BOT_USERNAME",
@@ -397,7 +403,7 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": "DEBUG" if DEBUG else "INFO",
         },
     },
 }
