@@ -133,8 +133,8 @@ Admin Dashboard | MoviesHub
               </td>
               <td class="fw-semibold">{{ movie.title }}</td>
               <td>
-                {% if movie.rating or movie.vote_average %}
-                  {{ movie.rating|default:movie.vote_average|floatformat:1 }}
+                {% if movie.rating %}
+                    {{ movie.rating|floatformat:1 }}
                 {% else %}
                   —
                 {% endif %}

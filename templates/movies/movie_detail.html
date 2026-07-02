@@ -57,9 +57,9 @@
 
           <!-- Rating & Vote Count -->
           <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
-            {% if movie.rating or movie.vote_average %}
+            {% if movie.rating %}
               <div class="d-flex align-items-center">
-                {% with rating=movie.rating|default:movie.vote_average|floatformat:1 %}
+                {% with rating=movie.rating|floatformat:1 %}
                   <span class="fw-bold fs-4 me-1">{{ rating }}</span>
                   <span class="text-muted">/10</span>
                 {% endwith %}
@@ -88,17 +88,16 @@
             {% endif %}
           </div>
 
-          <!-- Genres -->
+          <!-- Genres (fixed) -->
           <div class="d-flex flex-wrap gap-2 mb-3">
             {% if movie.genres %}
-              {% for genre in movie.genres %}
-                <span class="badge bg-light text-dark px-3 py-2 rounded-pill">{{ genre.name }}</span>
-              {% endfor %}
-            {% else %}
-              <!-- fallback: single category -->
-              {% if movie.category %}
-                <span class="badge bg-light text-dark px-3 py-2 rounded-pill">{{ movie.category.name }}</span>
-              {% endif %}
+              <span class="badge bg-light text-dark px-3 py-2 rounded-pill">
+                {{ movie.genres }}
+              </span>
+            {% elif movie.category %}
+              <span class="badge bg-light text-dark px-3 py-2 rounded-pill">
+                {{ movie.category.name }}
+              </span>
             {% endif %}
           </div>
 
@@ -139,7 +138,7 @@
           <div class="card-body bg-light">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <span class="fw-bold">⭐ {{ movie.rating|default:movie.vote_average|default:"—"|floatformat:1 }}</span>
+                <span class="fw-bold">⭐ {{ movie.rating|default:"—"|floatformat:1 }}</span>
                 <span class="text-muted">/10</span>
               </div>
               {% if movie.vote_count %}
@@ -156,17 +155,17 @@
       <!-- Right Column: Details -->
       <div class="col-lg-8">
 
-        <!-- Badges (optional: we keep them but replace Category with genres) -->
+        <!-- Badges (fixed genres) -->
         <div class="d-flex flex-wrap gap-2 mb-3">
           {% if movie.genres %}
-            {% for genre in movie.genres %}
-              <span class="badge bg-info text-dark fs-6 px-3 py-2">
-                <i class="bi bi-tag"></i> {{ genre.name }}
-              </span>
-            {% endfor %}
+            <span class="badge bg-info text-dark fs-6 px-3 py-2">
+              <i class="bi bi-tag"></i>
+              {{ movie.genres }}
+            </span>
           {% elif movie.category %}
             <span class="badge bg-info text-dark fs-6 px-3 py-2">
-              <i class="bi bi-tag"></i> {{ movie.category.name }}
+              <i class="bi bi-tag"></i>
+              {{ movie.category.name }}
             </span>
           {% endif %}
           {% if movie.year %}
@@ -179,9 +178,9 @@
               <i class="bi bi-film"></i> {{ movie.quality }}
             </span>
           {% endif %}
-          {% if movie.rating or movie.vote_average %}
+          {% if movie.rating %}
             <span class="badge bg-warning text-dark fs-6 px-3 py-2">
-              <i class="bi bi-star-fill"></i> {{ movie.rating|default:movie.vote_average|floatformat:1 }}/10
+              <i class="bi bi-star-fill"></i> {{ movie.rating|floatformat:1 }}/10
             </span>
           {% endif %}
           <span class="badge bg-primary fs-6 px-3 py-2">
@@ -235,7 +234,7 @@
                   <th>Production Companies</th>
                   <td>
                     {% if movie.production_companies %}
-                      {{ movie.production_companies|join:", " }}
+                      {{ movie.production_companies }}
                     {% else %}
                       —
                     {% endif %}
@@ -245,7 +244,7 @@
                   <th>Production Countries</th>
                   <td>
                     {% if movie.production_countries %}
-                      {{ movie.production_countries|join:", " }}
+                      {{ movie.production_countries }}
                     {% else %}
                       —
                     {% endif %}
@@ -255,7 +254,7 @@
                   <th>Spoken Languages</th>
                   <td>
                     {% if movie.spoken_languages %}
-                      {{ movie.spoken_languages|join:", " }}
+                      {{ movie.spoken_languages }}
                     {% else %}
                       —
                     {% endif %}
@@ -360,4 +359,3 @@
   </div>
 </div>
 {% endblock %}
-
