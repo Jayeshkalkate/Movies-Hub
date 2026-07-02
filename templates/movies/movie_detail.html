@@ -65,17 +65,19 @@
                 {% endwith %}
                 <!-- Star representation (out of 5) -->
                 <div class="ms-2 text-warning">
-                  {% with star_rating=movie.rating|default:movie.vote_average|default:0|floatformat:0 %}
-                    {% for i in "12345"|make_list %}
-                      {% if forloop.counter <= star_rating|add:"0"|divide:2 %}
-                        <i class="bi bi-star-fill"></i>
-                      {% elif forloop.counter <= star_rating|add:"0"|divide:2|add:0.5 %}
-                        <i class="bi bi-star-half"></i>
-                      {% else %}
-                        <i class="bi bi-star"></i>
-                      {% endif %}
-                    {% endfor %}
-                  {% endwith %}
+                  <div class="d-flex align-items-center mb-2">
+                     {% if movie.rating %}
+                         <span class="badge bg-warning text-dark fs-5">
+                            ⭐ {{ movie.rating|floatformat:1 }}/10
+                         </span>
+                     {% endif %}
+                     
+                     {% if movie.vote_count %}
+                         <span class="ms-3 text-light">
+                             {{ movie.vote_count|compact_number }} votes
+                         </span>
+                     {% endif %}
+                  </div>
                 </div>
               </div>
             {% endif %}
