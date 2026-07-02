@@ -6,10 +6,10 @@
 
   <!-- ========== HERO SECTION ========== -->
   <div class="position-relative" style="min-height: 400px; background: #0a0a0f;">
-    <!-- Backdrop Image -->
-    {% if movie.backdrop %}
+    <!-- Banner Image -->
+    {% if movie.banner %}
       <div class="position-absolute top-0 start-0 w-100 h-100"
-           style="background-image: url('{{ movie.backdrop }}');
+           style="background-image: url('{{ movie.banner }}');
                   background-size: cover;
                   background-position: center;
                   filter: brightness(0.4);">
@@ -102,13 +102,13 @@
             {% endif %}
           </div>
 
-          <!-- Release Date & Runtime -->
+          <!-- Release Date & Duration -->
           <div class="text-muted">
             {% if movie.release_date %}
               <span><i class="bi bi-calendar-event"></i> {{ movie.release_date|date:"F j, Y" }}</span>
             {% endif %}
-            {% if movie.runtime %}
-              <span class="ms-3"><i class="bi bi-clock"></i> {{ movie.runtime|format_duration }}</span>
+            {% if movie.duration %}
+              <span class="ms-3"><i class="bi bi-clock"></i> {{ movie.duration|format_duration }}</span>
             {% endif %}
           </div>
         </div>
@@ -145,8 +145,8 @@
               {% if movie.vote_count %}
                 <span class="text-muted"><i class="bi bi-people"></i> {{ movie.vote_count|intcomma }}</span>
               {% endif %}
-              {% if movie.runtime %}
-                <span class="text-muted"><i class="bi bi-clock"></i> {{ movie.runtime|format_duration }}</span>
+              {% if movie.duration %}
+                <span class="text-muted"><i class="bi bi-clock"></i> {{ movie.duration|format_duration }}</span>
               {% endif %}
             </div>
           </div>
@@ -266,8 +266,8 @@
                   <td>{{ movie.release_date|date:"F j, Y"|default:"—" }}</td>
                 </tr>
                 <tr>
-                  <th>Runtime</th>
-                  <td>{{ movie.runtime|format_duration|default:"—" }}</td>
+                  <th>Duration</th>
+                  <td>{{ movie.duration|format_duration|default:"—" }}</td>
                 </tr>
               </tbody>
             </table>
