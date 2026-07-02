@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 {% load static %}
 {% static "images/no-poster.jpg" as no_poster %}
@@ -5,124 +6,87 @@
 
 {% block content %}
 <div class="container py-4">
-    <!-- Header with stats and search -->
+    <!-- Header -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <h1 class="mb-2 mb-sm-0">
             <i class="bi bi-film"></i> Movie Library
         </h1>
-        {% comment %} <div class="d-flex gap-2">
-            <span class="badge bg-primary fs-6">
-                {{ page_obj.paginator.count|default:movies|length }} Movies
-            </span>
-        </div> {% endcomment %}
     </div>
 
-    <!-- Search & Filter Bar -->
+    <!-- Search Bar -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
-                <div class="col-md-5">
+                <div class="col-md-6 mx-auto">
                     <div class="input-group">
                         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                        <input type="text" name="q" class="form-control" placeholder="Search by title..." value="{{ request.GET.q }}">
+                        <input type="text" name="q" class="form-control" placeholder="Search for movies..." value="{{ request.GET.q }}">
+                        <button type="submit" class="btn btn-primary">Search</button>
                     </div>
                 </div>
-                
-                {% comment %} <div class="col-md-4">
-                <select name="category" class="form-select">
-                <option value="">All Categories</option>
-                
-                {% for cat in categories %}
-                <option value="{{ cat.id }}"
-                {% if request.GET.category == cat.id|stringformat:"s" %}
-                selected
-                {% endif %}>
-                {{ cat.name }}
-                </option>
-                {% endfor %}
-                
-                </select>
-                </div> {% endcomment %}
-
-                {% comment %} <div class="col-md-3">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-funnel"></i> Apply Filters
-                    </button>
-                </div>
-                 {% endcomment %}
-
             </form>
         </div>
     </div>
 
-    <!-- Movies Grid -->
+    <!-- Movies Grid (Netflix-style cards) -->
     {% if movies %}
         <div class="row g-4">
             {% for movie in movies %}
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                    <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden hover-card">
-                        <!-- Poster or placeholder -->
-                        <div class="position-relative">
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                    <div class="card h-100 border-0 bg-transparent netflix-card">
+                        <!-- Poster with overlay info -->
+                        <div class="position-relative poster-wrapper">
                             {% if movie.poster %}
                                 <img src="{{ movie.poster }}"
-                                     class="card-img-top"
+                                     class="card-img-top rounded-3"
                                      alt="{{ movie.title }}"
-                                     style="height:280px;object-fit:cover;"
+                                     loading="lazy"
                                      onerror="this.onerror=null;this.src='{{ no_poster }}';">
                             {% else %}
-                                <div class="bg-secondary text-white d-flex align-items-center justify-content-center"
-                                     style="height: 280px;">
+                                <div class="bg-secondary text-white d-flex align-items-center justify-content-center rounded-3"
+                                     style="aspect-ratio: 2/3; width: 100%;">
                                     <div class="text-center">
                                         <i class="bi bi-camera-reels fs-1"></i>
                                         <p class="mb-0 small">No Poster</p>
                                     </div>
                                 </div>
                             {% endif %}
-                            <!-- View count overlay -->
-                            <div class="position-absolute bottom-0 end-0 bg-dark bg-opacity-75 text-white px-2 py-1 m-2 rounded-pill small">
-                                <i class="bi bi-eye"></i> {{ movie.views }}
-                            </div>
-                            <!-- Optional rating badge overlay (top-right) -->
+
+                            <!-- Rating badge (top-right) -->
                             {% if movie.rating %}
-                            <div class="position-absolute top-0 end-0 bg-warning text-dark px-2 py-1 m-2 rounded-pill small fw-bold">
-                                ⭐ {{ movie.rating }}/10
-                            </div>
+                                <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-2 rounded-pill">
+                                    ⭐ {{ movie.rating }}
+                                </span>
+                            {% endif %}
+
+                            <!-- Year (bottom-left over image) -->
+                            {% if movie.year %}
+                                <span class="badge bg-dark bg-opacity-75 position-absolute bottom-0 start-0 m-2 rounded-pill">
+                                    {{ movie.year }}
+                                </span>
+                            {% endif %}
+
+                            <!-- Runtime (bottom-right over image) -->
+                            {% if movie.runtime %}
+                                <span class="badge bg-dark bg-opacity-75 position-absolute bottom-0 end-0 m-2 rounded-pill">
+                                    <i class="bi bi-clock"></i> {{ movie.runtime }} min
+                                </span>
                             {% endif %}
                         </div>
 
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title fw-semibold text-truncate">{{ movie.title }}</h5>
-                            <p class="card-text text-muted small mb-3">
-                                {{ movie.overview|default:movie.description|truncatewords:12|default:"No description available." }}
-                            </p>
-                            <div class="mb-2">
-                                {% if movie.category %}
-                                    <span class="badge bg-info text-dark">{{ movie.category.name }}</span>
-                                {% endif %}
-                                {% if movie.year %}
-                                    <span class="badge bg-secondary">{{ movie.year }}</span>
-                                {% endif %}
-                                {% if movie.quality %}
-                                    <span class="badge bg-dark">{{ movie.quality }}</span>
-                                {% endif %}
-                            </div>
-                            <div class="mt-auto">
-                                <a href="{% url 'movie_detail' movie.id %}" class="btn btn-outline-primary btn-sm w-100">
-                                    <i class="bi bi-info-circle"></i> View Details
+                        <!-- Card body: title + genres -->
+                        <div class="card-body px-0 pt-2 pb-0">
+                            <h6 class="card-title fw-semibold text-truncate mb-1">
+                                <a href="{% url 'movie_detail' movie.id %}" class="text-decoration-none text-reset stretched-link">
+                                    {{ movie.title }}
                                 </a>
-                            </div>
-                        </div>
-
-                        <div class="card-footer bg-white border-top-0 pt-0 pb-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">
-                                    <i class="bi bi-calendar"></i> {{ movie.created_at|date:"M d, Y"|default:"Recently" }}
-                                </small>
-                                <small class="text-muted">
-                                    <i class="bi bi-star"></i> Featured? 
-                                    {% if movie.is_featured %}Yes{% else %}No{% endif %}
-                                </small>
-                            </div>
+                            </h6>
+                            {% if movie.category %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary small fw-normal">
+                                    {{ movie.category.name }}
+                                </span>
+                            {% endif %}
+                            <!-- You can add more genre badges if you have a many-to-many field -->
                         </div>
                     </div>
                 </div>
@@ -135,32 +99,32 @@
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page=1">
-                            <i class="bi bi-chevron-double-left"></i> First
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page=1">
+                            <i class="bi bi-chevron-double-left"></i>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.previous_page_number }}">
-                            <i class="bi bi-chevron-left"></i> Prev
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i>
                         </a>
                     </li>
                 {% endif %}
 
                 <li class="page-item disabled">
                     <span class="page-link bg-light">
-                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
                     </span>
                 </li>
 
                 {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.next_page_number }}">
-                            Next <i class="bi bi-chevron-right"></i>
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}page={{ page_obj.paginator.num_pages }}">
-                            Last <i class="bi bi-chevron-double-right"></i>
+                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.paginator.num_pages }}">
+                            <i class="bi bi-chevron-double-right"></i>
                         </a>
                     </li>
                 {% endif %}
@@ -178,18 +142,39 @@
     {% endif %}
 </div>
 
-<!-- Hover effect CSS -->
+<!-- Netflix-style card CSS -->
 <style>
-    .hover-card {
+    .netflix-card {
         transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
     }
-    .hover-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+    .netflix-card:hover {
+        transform: scale(1.05);
+        z-index: 10;
     }
-    .card-img-top {
-        border-top-left-radius: 1rem;
-        border-top-right-radius: 1rem;
+    .netflix-card .card-img-top {
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        background-color: #1a1a1a;
+    }
+    .netflix-card .card-body {
+        background: transparent;
+    }
+    .netflix-card .card-title {
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+    .netflix-card .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        backdrop-filter: blur(2px);
+    }
+    .poster-wrapper {
+        overflow: hidden;
+        border-radius: 0.5rem;
+    }
+    .poster-wrapper .badge {
+        pointer-events: none; /* so they don't block clicks */
     }
 </style>
 {% endblock %}

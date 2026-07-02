@@ -1,213 +1,361 @@
 {% extends "base.html" %}
-{% comment %} {% load static humanize %} {% endcomment %}
 {% load static humanize custom_filters %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid px-0">
 
-  <!-- Banner (if banner_url exists) else poster as fallback -->
-  <div class="mb-4 rounded-4 overflow-hidden" style="height: 300px; position: relative;">
-    {% if movie.banner %}
-      <div style="height: 100%; background-image: url('{{ movie.banner }}'); background-size: cover; background-position: center;">
+  <!-- ========== HERO SECTION ========== -->
+  <div class="position-relative" style="min-height: 400px; background: #0a0a0f;">
+    <!-- Backdrop Image -->
+    {% if movie.backdrop %}
+      <div class="position-absolute top-0 start-0 w-100 h-100"
+           style="background-image: url('{{ movie.backdrop }}');
+                  background-size: cover;
+                  background-position: center;
+                  filter: brightness(0.4);">
+      </div>
     {% elif movie.poster %}
-      <div style="height: 100%; background-image: url('{{ movie.poster }}'); background-size: cover; background-position: center; filter: blur(8px) brightness(0.6); transform: scale(1.05);">
+      <div class="position-absolute top-0 start-0 w-100 h-100"
+           style="background-image: url('{{ movie.poster }}');
+                  background-size: cover;
+                  background-position: center;
+                  filter: blur(8px) brightness(0.3) scale(1.05);">
+      </div>
     {% else %}
-      <div style="height: 100%; background: linear-gradient(135deg, #1a1a2e, #16213e);">
+      <div class="position-absolute top-0 start-0 w-100 h-100"
+           style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
+      </div>
     {% endif %}
-      <div class="d-flex align-items-end h-100" style="background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);">
-        <div class="p-4 text-white w-100">
-          <h1 class="display-5 fw-bold">{{ movie.title }}</h1>
-          {% if movie.year %}
-            <p class="lead mb-0">{{ movie.year }}</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="row">
-    <div class="col-lg-4 mb-4">
-      <!-- Movie Poster -->
-      <div class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top" style="top: 20px">
-        {% if movie.poster %}
-          <img src="{{ movie.poster }}"
-               alt="{{ movie.title }}"
-               class="card-img-top img-fluid"
-               style="object-fit: cover; min-height: 300px;"
-               loading="lazy"
-               decoding="async"
-               onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}';">
-        {% else %}
-          <img src="{% static 'images/no-poster.jpg' %}"
-               alt="No poster available"
-               class="card-img-top img-fluid"
-               style="object-fit: cover; min-height: 300px;"
-               loading="lazy"
-               decoding="async">
-        {% endif %}
-        <div class="card-body bg-light text-center">
-          <small class="text-muted">Poster</small>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-8">
-      <!-- Badges -->
-      <div class="d-flex flex-wrap gap-2 mb-3">
-        {% if movie.category %}
-        <span class="badge bg-info text-dark fs-6 px-3 py-2">
-          <i class="bi bi-tag"></i> {{ movie.category.name }}
-        </span>
-        {% endif %}
-        {% if movie.year %}
-        <span class="badge bg-secondary fs-6 px-3 py-2">
-          <i class="bi bi-calendar"></i> {{ movie.year }}
-        </span>
-        {% endif %}
-        {% if movie.quality %}
-        <span class="badge bg-success fs-6 px-3 py-2">
-          <i class="bi bi-film"></i> {{ movie.quality }}
-        </span>
-        {% endif %}
-        {% if movie.rating %}
-        <span class="badge bg-warning text-dark fs-6 px-3 py-2">
-          <i class="bi bi-star-fill"></i> {{ movie.rating|floatformat:1 }}/10
-        </span>
-        {% endif %}
-        <span class="badge bg-primary fs-6 px-3 py-2">
-          <i class="bi bi-eye"></i> {{ movie.views|intcomma }} views
-        </span>
-      </div>
-
-      <!-- Synopsis -->
-      <div class="card shadow-sm border-0 rounded-4 mb-4">
-        <div class="card-header bg-white py-3">
-          <h5 class="mb-0">
-            <i class="bi bi-info-circle"></i> Synopsis
-          </h5>
-        </div>
-        <div class="card-body">
-          {% if movie.overview %}
-            <p class="mb-0">{{ movie.overview|linebreaks }}</p>
-          {% elif movie.description %}
-            <p class="mb-0">{{ movie.description|linebreaks }}</p>
-          {% else %}
-            <p class="text-muted mb-0">No synopsis available.</p>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Details Table -->
-      <div class="card shadow-sm border-0 rounded-4 mb-4">
-        <div class="card-header bg-white py-3">
-          <h5 class="mb-0"><i class="bi bi-card-list"></i> Movie Details</h5>
-        </div>
-        <div class="card-body">
-          <table class="table table-borderless mb-0">
-            <tbody>
-              <tr>
-                <th style="width: 30%">Title</th>
-                <td>{{ movie.title }}</td>
-              </tr>
-              <tr>
-                <th>Category</th>
-                <td>
-                  {% if movie.category %}
-                    {{ movie.category.name }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
-              <tr>
-                <th>Year</th>
-                <td>{{ movie.year|default:"—" }}</td>
-              </tr>
-              <tr>
-                <th>Quality</th>
-                <td>{{ movie.quality|default:"—" }}</td>
-              </tr>
-              <tr>
-                <th>Total Views</th>
-                <td>{{ movie.views|intcomma }}</td>
-              </tr>
-              <tr>
-                <th>Release Date</th>
-                <td>{{ movie.release_date|date:"F j, Y"|default:"—" }}</td>
-              </tr>
-              <tr>
-                <th>TMDB Rating</th>
-                <td>
-                  {% if movie.rating %}
-                    ⭐ {{ movie.rating|floatformat:1 }}/10
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
-              <tr>
-                <th>Duration</th>
-                <td>
-                  {% if movie.duration %}
-                    {{ movie.duration|format_duration }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Action Buttons based on Verification Status -->
-      {% if is_verified %}
-      <div class="card shadow-sm border-0 rounded-4 bg-light">
-        <div class="card-body">
-          <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
-            <a href="{% url 'watch_movie' movie.id %}" class="btn btn-success btn-lg">
-              <i class="bi bi-play-circle"></i> Watch Movie
-            </a>
-            {% if movie.can_download_from_website %}
-            <a href="{% url 'website_download' movie.id %}" class="btn btn-success btn-lg">
-              <i class="bi bi-download"></i> Download on Website
-            </a>
+    <!-- Hero Content -->
+    <div class="position-relative container py-5" style="z-index: 2;">
+      <div class="row align-items-start g-4">
+        <!-- Poster (small, left) -->
+        <div class="col-md-3 col-lg-2 d-none d-md-block">
+          <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+            {% if movie.poster %}
+              <img src="{{ movie.poster }}" alt="{{ movie.title }}" class="img-fluid"
+                   loading="lazy" decoding="async"
+                   onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}'">
             {% else %}
-            <div class="alert alert-info mb-0">
-              <i class="bi bi-info-circle"></i>
-              This movie is larger than 2 GB and cannot be downloaded directly from the website.
-            </div>
+              <img src="{% static 'images/no-poster.jpg' %}" alt="No poster" class="img-fluid"
+                   loading="lazy" decoding="async">
             {% endif %}
-            <a href="{% url 'download_movie' movie.id %}" class="btn btn-warning btn-lg">
-              <i class="bi bi-telegram"></i> Download On Telegram
-            </a>
-            <a href="{% url 'add_to_watchlist' movie.id %}" class="btn btn-info btn-lg">
-              <i class="bi bi-bookmark-plus"></i> Add to Watchlist
-            </a>
+          </div>
+        </div>
+
+        <!-- Text Block -->
+        <div class="col-md-9 col-lg-10 text-white">
+          <h1 class="display-4 fw-bold mb-1">{{ movie.title }}</h1>
+          {% if movie.original_title and movie.original_title != movie.title %}
+            <p class="text-muted h5 mb-2">{{ movie.original_title }}</p>
+          {% endif %}
+
+          {% if movie.tagline %}
+            <p class="fs-5 fst-italic text-light-50 mb-3">“{{ movie.tagline }}”</p>
+          {% endif %}
+
+          <!-- Rating & Vote Count -->
+          <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+            {% if movie.rating or movie.vote_average %}
+              <div class="d-flex align-items-center">
+                {% with rating=movie.rating|default:movie.vote_average|floatformat:1 %}
+                  <span class="fw-bold fs-4 me-1">{{ rating }}</span>
+                  <span class="text-muted">/10</span>
+                {% endwith %}
+                <!-- Star representation (out of 5) -->
+                <div class="ms-2 text-warning">
+                  {% with star_rating=movie.rating|default:movie.vote_average|default:0|floatformat:0 %}
+                    {% for i in "12345"|make_list %}
+                      {% if forloop.counter <= star_rating|add:"0"|divide:2 %}
+                        <i class="bi bi-star-fill"></i>
+                      {% elif forloop.counter <= star_rating|add:"0"|divide:2|add:0.5 %}
+                        <i class="bi bi-star-half"></i>
+                      {% else %}
+                        <i class="bi bi-star"></i>
+                      {% endif %}
+                    {% endfor %}
+                  {% endwith %}
+                </div>
+              </div>
+            {% endif %}
+            {% if movie.vote_count %}
+              <span class="text-muted">
+                <i class="bi bi-people"></i> {{ movie.vote_count|intcomma }} Votes
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Genres -->
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            {% if movie.genres %}
+              {% for genre in movie.genres %}
+                <span class="badge bg-light text-dark px-3 py-2 rounded-pill">{{ genre.name }}</span>
+              {% endfor %}
+            {% else %}
+              <!-- fallback: single category -->
+              {% if movie.category %}
+                <span class="badge bg-light text-dark px-3 py-2 rounded-pill">{{ movie.category.name }}</span>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          <!-- Release Date & Runtime -->
+          <div class="text-muted">
+            {% if movie.release_date %}
+              <span><i class="bi bi-calendar-event"></i> {{ movie.release_date|date:"F j, Y" }}</span>
+            {% endif %}
+            {% if movie.runtime %}
+              <span class="ms-3"><i class="bi bi-clock"></i> {{ movie.runtime|format_duration }}</span>
+            {% endif %}
           </div>
         </div>
       </div>
-      {% else %}
-      <div class="alert alert-warning d-flex align-items-center shadow-sm rounded-4" role="alert">
-        <i class="bi bi-exclamation-triangle-fill fs-2 me-3"></i>
-        <div>
-          <strong>Verification Required</strong><br />
-          Please verify your Telegram account and join the required channels to watch or download this content.
-        </div>
-      </div>
-      <div class="text-center mt-3">
-        <a href="{% url 'verify_telegram' %}" class="btn btn-warning btn-lg px-5">
-          <i class="bi bi-telegram"></i> Verify Telegram Account
-        </a>
-      </div>
-      {% endif %}
     </div>
   </div>
 
-  <!-- Back Navigation -->
-  <div class="mt-4">
-    <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Back to Movies
-    </a>
+  <!-- ========== MAIN CONTENT ========== -->
+  <div class="container mt-4">
+
+    <div class="row">
+      <!-- Left Column: Poster Card -->
+      <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden sticky-lg-top" style="top: 20px;">
+          {% if movie.poster %}
+            <img src="{{ movie.poster }}" alt="{{ movie.title }}"
+                 class="card-img-top img-fluid"
+                 style="object-fit: cover; min-height: 300px;"
+                 loading="lazy" decoding="async"
+                 onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}'">
+          {% else %}
+            <img src="{% static 'images/no-poster.jpg' %}" alt="No poster available"
+                 class="card-img-top img-fluid"
+                 style="object-fit: cover; min-height: 300px;"
+                 loading="lazy" decoding="async">
+          {% endif %}
+
+          <div class="card-body bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <span class="fw-bold">⭐ {{ movie.rating|default:movie.vote_average|default:"—"|floatformat:1 }}</span>
+                <span class="text-muted">/10</span>
+              </div>
+              {% if movie.vote_count %}
+                <span class="text-muted"><i class="bi bi-people"></i> {{ movie.vote_count|intcomma }}</span>
+              {% endif %}
+              {% if movie.runtime %}
+                <span class="text-muted"><i class="bi bi-clock"></i> {{ movie.runtime|format_duration }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Details -->
+      <div class="col-lg-8">
+
+        <!-- Badges (optional: we keep them but replace Category with genres) -->
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% if movie.genres %}
+            {% for genre in movie.genres %}
+              <span class="badge bg-info text-dark fs-6 px-3 py-2">
+                <i class="bi bi-tag"></i> {{ genre.name }}
+              </span>
+            {% endfor %}
+          {% elif movie.category %}
+            <span class="badge bg-info text-dark fs-6 px-3 py-2">
+              <i class="bi bi-tag"></i> {{ movie.category.name }}
+            </span>
+          {% endif %}
+          {% if movie.year %}
+            <span class="badge bg-secondary fs-6 px-3 py-2">
+              <i class="bi bi-calendar"></i> {{ movie.year }}
+            </span>
+          {% endif %}
+          {% if movie.quality %}
+            <span class="badge bg-success fs-6 px-3 py-2">
+              <i class="bi bi-film"></i> {{ movie.quality }}
+            </span>
+          {% endif %}
+          {% if movie.rating or movie.vote_average %}
+            <span class="badge bg-warning text-dark fs-6 px-3 py-2">
+              <i class="bi bi-star-fill"></i> {{ movie.rating|default:movie.vote_average|floatformat:1 }}/10
+            </span>
+          {% endif %}
+          <span class="badge bg-primary fs-6 px-3 py-2">
+            <i class="bi bi-eye"></i> {{ movie.views|intcomma }} views
+          </span>
+        </div>
+
+        <!-- Overview (renamed from Synopsis) -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+          <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Overview</h5>
+          </div>
+          <div class="card-body">
+            {% if movie.overview %}
+              <p class="mb-0">{{ movie.overview|linebreaks }}</p>
+            {% elif movie.description %}
+              <p class="mb-0">{{ movie.description|linebreaks }}</p>
+            {% else %}
+              <p class="text-muted mb-0">No overview available.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Details Table (updated fields) -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+          <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-card-list"></i> Movie Details</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-borderless mb-0">
+              <tbody>
+                <tr>
+                  <th style="width: 30%">Title</th>
+                  <td>{{ movie.title }}</td>
+                </tr>
+                {% if movie.original_title and movie.original_title != movie.title %}
+                <tr>
+                  <th>Original Title</th>
+                  <td>{{ movie.original_title }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <th>Status</th>
+                  <td>{{ movie.status|default:"—" }}</td>
+                </tr>
+                <tr>
+                  <th>Original Language</th>
+                  <td>{{ movie.original_language|default:"—" }}</td>
+                </tr>
+                <tr>
+                  <th>Production Companies</th>
+                  <td>
+                    {% if movie.production_companies %}
+                      {{ movie.production_companies|join:", " }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Production Countries</th>
+                  <td>
+                    {% if movie.production_countries %}
+                      {{ movie.production_countries|join:", " }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Spoken Languages</th>
+                  <td>
+                    {% if movie.spoken_languages %}
+                      {{ movie.spoken_languages|join:", " }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Release Date</th>
+                  <td>{{ movie.release_date|date:"F j, Y"|default:"—" }}</td>
+                </tr>
+                <tr>
+                  <th>Runtime</th>
+                  <td>{{ movie.runtime|format_duration|default:"—" }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- NEW: Box Office Card -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+          <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-cash-stack"></i> Box Office</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-borderless mb-0">
+              <tbody>
+                <tr>
+                  <th style="width: 30%">Budget</th>
+                  <td>
+                    {% if movie.budget %}
+                      ${{ movie.budget|intcomma }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Revenue</th>
+                  <td>
+                    {% if movie.revenue %}
+                      ${{ movie.revenue|intcomma }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Action Buttons (unchanged) -->
+        {% if is_verified %}
+        <div class="card shadow-sm border-0 rounded-4 bg-light">
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
+              <a href="{% url 'watch_movie' movie.id %}" class="btn btn-success btn-lg">
+                <i class="bi bi-play-circle"></i> Watch Movie
+              </a>
+              {% if movie.can_download_from_website %}
+              <a href="{% url 'website_download' movie.id %}" class="btn btn-success btn-lg">
+                <i class="bi bi-download"></i> Download on Website
+              </a>
+              {% else %}
+              <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i>
+                This movie is larger than 2 GB and cannot be downloaded directly from the website.
+              </div>
+              {% endif %}
+              <a href="{% url 'download_movie' movie.id %}" class="btn btn-warning btn-lg">
+                <i class="bi bi-telegram"></i> Download On Telegram
+              </a>
+              <a href="{% url 'add_to_watchlist' movie.id %}" class="btn btn-info btn-lg">
+                <i class="bi bi-bookmark-plus"></i> Add to Watchlist
+              </a>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning d-flex align-items-center shadow-sm rounded-4" role="alert">
+          <i class="bi bi-exclamation-triangle-fill fs-2 me-3"></i>
+          <div>
+            <strong>Verification Required</strong><br />
+            Please verify your Telegram account and join the required channels to watch or download this content.
+          </div>
+        </div>
+        <div class="text-center mt-3">
+          <a href="{% url 'verify_telegram' %}" class="btn btn-warning btn-lg px-5">
+            <i class="bi bi-telegram"></i> Verify Telegram Account
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Back Navigation -->
+    <div class="mt-4">
+      <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Movies
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}
+

@@ -213,6 +213,42 @@ class TMDBMovie(models.Model):
         blank=True,
         default=""
     )
+    
+    tagline = models.CharField(
+        max_length=500,
+        blank=True,
+        default=""
+    )
+    
+    budget = models.BigIntegerField(
+        null=True,
+        blank=True
+    )
+    
+    revenue = models.BigIntegerField(
+        null=True,
+        blank=True
+    )
+    
+    production_companies = models.TextField(
+        blank=True,
+        default=""
+    )
+    
+    production_countries = models.TextField(
+        blank=True,
+        default=""
+    )
+    
+    spoken_languages = models.TextField(
+        blank=True,
+        default=""
+    )
+    
+    vote_count = models.PositiveIntegerField(
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return self.title

@@ -183,15 +183,17 @@ class TelegramChannelAdmin(admin.ModelAdmin):
 class TelegramMovieAdmin(admin.ModelAdmin):
     list_display = (
         "title",
-        "tmdb_id",           # Added
-        "has_tmdb",          # Custom boolean indicator
+        "rating",
+        "year",
+        "tmdb_id",
+        "status",          # New
+        "language",        # New
+        "has_tmdb",        # Custom boolean indicator
         "slug",
         "content_type",
         "category",
         "quality",
-        "year",
         "duration",
-        "rating",
         "is_featured",
         "views",
         "downloads",
@@ -204,8 +206,9 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         "quality",
         "is_featured",
         "year",
+        "status",          # New
+        "language",        # New
         "created_at",
-        # tmdb_id intentionally omitted as a filter (integer not ideal)
     )
 
     search_fields = (
@@ -248,3 +251,4 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         return bool(obj.tmdb_id)
     has_tmdb.boolean = True
     has_tmdb.short_description = "Has TMDB ID"
+    

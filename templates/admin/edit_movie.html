@@ -1,77 +1,165 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}
-Admin Edit Movie | MoviesHub
-{% endblock %}
+{% block title %}Admin Edit Movie | MoviesHub{% endblock %}
 
 {% block content %}
-
 <div class="container mt-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8 col-md-10">
-            <!-- Card container for the edit form -->
+        <div class="col-lg-10 col-md-12">
             <div class="card shadow-sm border-0 rounded-4">
                 <div class="card-header bg-white py-3 border-bottom-0">
                     <h2 class="mb-0 fw-bold text-primary">
                         <i class="bi bi-pencil-square"></i> Edit Movie
                     </h2>
-                    <p class="text-muted mt-2">Update the movie details below</p>
+                    <p class="text-muted mt-2">Update all movie details below</p>
                 </div>
 
                 <div class="card-body p-4">
                     <form method="POST" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
 
-                        <!-- Loop through form fields and apply Bootstrap styling -->
-                        {% for field in form %}
-                        <div class="mb-4">
-                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
-                                {{ field.label }}
-                                {% if field.field.required %}
-                                <span class="text-danger">*</span>
-                                {% endif %}
-                            </label>
+                        <!-- ========== BASIC INFO ========== -->
+                        <h5 class="fw-bold mb-3"><i class="bi bi-info-circle"></i> Basic Information</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form.title.label_tag }}
+                                {{ form.title }}
+                                {{ form.title.errors }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.tagline.label_tag }}
+                                {{ form.tagline }}
+                                {{ form.tagline.errors }}
+                            </div>
+                        </div>
 
-                            <!-- Special handling for poster field with image preview -->
-                            {% if field.name == 'poster' %}
+                        <div class="mb-3">
+                            {{ form.description.label_tag }}
+                            {{ form.description }}
+                            {{ form.description.errors }}
+                        </div>
+
+                        <!-- ========== POSTER ========== -->
+                        <h5 class="fw-bold mt-4 mb-3"><i class="bi bi-image"></i> Poster</h5>
+                        <div class="mb-3">
                             <div class="mb-2">
                                 {% if form.instance.poster %}
-                                <img id="poster-preview"
-                                src="{{ form.instance.poster.url }}"
-                                alt="Current poster"
-                                class="img-thumbnail rounded"
-                                style="max-height: 150px" />
+                                    <img id="poster-preview"
+                                         src="{{ form.instance.poster.url }}"
+                                         alt="Current poster"
+                                         class="img-thumbnail rounded"
+                                         style="max-height: 150px" />
                                 {% else %}
-                                <img id="poster-preview"
-                                src="#"
-                                alt="Poster preview"
-                                class="img-thumbnail rounded d-none"
-                                style="max-height: 150px" />
+                                    <img id="poster-preview"
+                                         src="#"
+                                         alt="Poster preview"
+                                         class="img-thumbnail rounded d-none"
+                                         style="max-height: 150px" />
                                 {% endif %}
                             </div>
-                            {{ field }}
-                            {% else %}
-                            {{ field }}
-                            {% endif %}
-
-                            <!-- Help text -->
-                            {% if field.help_text %}
-                            <div class="form-text text-muted small">
-                                {{ field.help_text }}
-                            </div>
-                            {% endif %}
-
-                            <!-- Field errors -->
-                            {% for error in field.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ error }}
-                            </div>
-                            {% endfor %}
+                            {{ form.poster }}
+                            {{ form.poster.errors }}
+                            <div class="form-text text-muted small">Upload a new poster image (optional).</div>
                         </div>
-                        {% endfor %}
 
-                        <!-- Action Buttons -->
-                        <div class="d-flex justify-content-between align-items-center mt-4 pt-2">
+                        <!-- ========== DETAILS ========== -->
+                        <h5 class="fw-bold mt-4 mb-3"><i class="bi bi-film"></i> Details</h5>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                {{ form.year.label_tag }}
+                                {{ form.year }}
+                                {{ form.year.errors }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.runtime.label_tag }}
+                                {{ form.runtime }}
+                                {{ form.runtime.errors }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.quality.label_tag }}
+                                {{ form.quality }}
+                                {{ form.quality.errors }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.rating.label_tag }}
+                                {{ form.rating }}
+                                {{ form.rating.errors }}
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                {{ form.category.label_tag }}
+                                {{ form.category }}
+                                {{ form.category.errors }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.is_featured.label_tag }}
+                                <div class="form-check form-switch mt-1">
+                                    {{ form.is_featured }}
+                                    <label class="form-check-label" for="{{ form.is_featured.id_for_label }}">
+                                        Featured
+                                    </label>
+                                </div>
+                                {{ form.is_featured.errors }}
+                            </div>
+                        </div>
+
+                        <!-- ========== FINANCIAL ========== -->
+                        <h5 class="fw-bold mt-4 mb-3"><i class="bi bi-currency-dollar"></i> Financial</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.budget.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.budget.label }}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.budget }}
+                                </div>
+                                {{ form.budget.errors }}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.revenue.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.revenue.label }}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.revenue }}
+                                </div>
+                                {{ form.revenue.errors }}
+                            </div>
+                        </div>
+
+                        <!-- ========== INTERNATIONAL ========== -->
+                        <h5 class="fw-bold mt-4 mb-3"><i class="bi bi-globe"></i> International</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form.original_language.label_tag }}
+                                {{ form.original_language }}
+                                {{ form.original_language.errors }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.production_companies.label_tag }}
+                                {{ form.production_companies }}
+                                {{ form.production_companies.errors }}
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                {{ form.production_countries.label_tag }}
+                                {{ form.production_countries }}
+                                {{ form.production_countries.errors }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.spoken_languages.label_tag }}
+                                {{ form.spoken_languages }}
+                                {{ form.spoken_languages.errors }}
+                            </div>
+                        </div>
+
+                        <!-- ========== BUTTONS ========== -->
+                        <div class="d-flex justify-content-between align-items-center mt-5 pt-3 border-top">
                             <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary px-4">
                                 <i class="bi bi-arrow-left"></i> Cancel
                             </a>
@@ -93,7 +181,6 @@ Admin Edit Movie | MoviesHub
         const previewImg = document.getElementById("poster-preview");
 
         if (posterInput && previewImg) {
-            // Store the original poster URL if it exists
             if (previewImg.src && previewImg.src !== "#") {
                 previewImg.dataset.original = previewImg.src;
             }
@@ -108,7 +195,6 @@ Admin Edit Movie | MoviesHub
                     };
                     reader.readAsDataURL(file);
                 } else {
-                    // Revert to original poster or hide preview
                     if (previewImg.dataset.original) {
                         previewImg.src = previewImg.dataset.original;
                         previewImg.classList.remove("d-none");
@@ -121,5 +207,4 @@ Admin Edit Movie | MoviesHub
         }
     });
 </script>
-
 {% endblock %}

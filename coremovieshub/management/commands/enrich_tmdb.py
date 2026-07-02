@@ -1,11 +1,9 @@
 from django.core.management.base import BaseCommand
 
 from coremovieshub.models import TelegramMovie
-        
 from coremovieshub.services.movie_metadata import (
     search_movie_metadata,
 )
-
 from coremovieshub.utils.movie_parser import (
     extract_title,
     extract_year,
@@ -68,6 +66,44 @@ class Command(BaseCommand):
             # **** CRITICAL: Do NOT overwrite the original title ****
             if not movie.title:
                 movie.title = clean_title
+
+            # ----- New fields added below -----
+            if not movie.tagline:
+                movie.tagline = metadata.get("tagline")
+
+            if not movie.budget:
+                movie.budget = metadata.get("budget")
+
+            if not movie.revenue:
+                movie.revenue = metadata.get("revenue")
+
+            if not movie.vote_count:
+                movie.vote_count = metadata.get("vote_count")
+
+            # Convert list to comma-separated string for storage
+            if not movie.production_companies:
+                val = metadata.get("production_companies")
+                if val is not None:
+                    if isinstance(val, list):
+                        movie.production_companies = ', '.join(val)
+                    else:
+                        movie.production_companies = val
+
+            if not movie.production_countries:
+                val = metadata.get("production_countries")
+                if val is not None:
+                    if isinstance(val, list):
+                        movie.production_countries = ', '.join(val)
+                    else:
+                        movie.production_countries = val
+
+            if not movie.spoken_languages:
+                val = metadata.get("spoken_languages")
+                if val is not None:
+                    if isinstance(val, list):
+                        movie.spoken_languages = ', '.join(val)
+                    else:
+                        movie.spoken_languages = val
 
             movie.save()
 

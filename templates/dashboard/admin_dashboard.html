@@ -108,9 +108,10 @@ Admin Dashboard | MoviesHub
             <tr>
               <th>Poster</th>
               <th>Title</th>
-              <th>Category</th>
+              <th>⭐ Rating</th>
+              <th>Year</th>
+              <th>TMDB ID</th>
               <th>Views</th>
-              <th>Added</th>
               <th class="text-center">Actions</th>
             </tr>
           </thead>
@@ -132,14 +133,23 @@ Admin Dashboard | MoviesHub
               </td>
               <td class="fw-semibold">{{ movie.title }}</td>
               <td>
-                {% if movie.category %}
-                <span class="badge bg-info text-dark"
-                  >{{ movie.category.name }}</span
-                >
-                {% else %} — {% endif %}
+                {% if movie.rating or movie.vote_average %}
+                  {{ movie.rating|default:movie.vote_average|floatformat:1 }}
+                {% else %}
+                  —
+                {% endif %}
               </td>
-              <td>{{ movie.views }}</td>
-              <td>{{ movie.created_at|date:"Y-m-d H:i" }}</td>
+              <td>{{ movie.year|default:"—" }}</td>
+              <td>
+                {% if movie.tmdb_id %}
+                  {{ movie.tmdb_id }}
+                {% elif movie.external_id %}
+                  {{ movie.external_id }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>{{ movie.views|intcomma }}</td>
               <td class="text-center">
                 <div class="btn-group btn-group-sm" role="group">
                   <a

@@ -119,7 +119,10 @@ def format_movie(details: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with keys: id, title, original_title, release_year, release_date,
                          overview, poster_path, backdrop_path, vote_average,
-                         vote_count, genres, runtime, status, tagline, imdb_id.
+                         vote_count, genres, runtime, status, tagline, imdb_id,
+                         original_language, budget, revenue,
+                         production_companies, production_countries,
+                         spoken_languages.
     """
     def get_year(date_str):
         if date_str and len(date_str) >= 4:
@@ -143,6 +146,12 @@ def format_movie(details: Dict[str, Any]) -> Dict[str, Any]:
         "tagline": details.get("tagline"),
         "imdb_id": details.get("imdb_id"),
         "original_language": details.get("original_language"),
+        # --- New fields ---
+        "budget": details.get("budget"),
+        "revenue": details.get("revenue"),
+        "production_companies": [c["name"] for c in details.get("production_companies", [])],
+        "production_countries": [c["name"] for c in details.get("production_countries", [])],
+        "spoken_languages": [l["name"] for l in details.get("spoken_languages", [])],
     }
 
 

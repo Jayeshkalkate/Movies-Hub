@@ -16,7 +16,7 @@ from django.db.models import Q
 
 from coremovieshub.models import TMDBMovie
 from metadata.providers.tmdb import get_tmdb_client
-from metadata.tmdb_cache import find_by_title, save_metadata   # <-- added
+from metadata.tmdb_cache import find_by_title, save_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,13 @@ def search_movie_metadata(title, year=None):
         - genres (list of strings)
         - status (string)
         - confidence_score (float 0-1)
+        - tagline (string)
+        - budget (int)
+        - revenue (int)
+        - vote_count (int)
+        - production_companies (list of strings)
+        - production_countries (list of strings)
+        - spoken_languages (list of strings)
 
     Args:
         title (str): movie title to search for
@@ -78,32 +85,20 @@ def search_movie_metadata(title, year=None):
     # ----- STEP 1: Use the unified cache lookup (with staleness check) -----
     cached = find_by_title(title, year=year)
     if cached:
-        # We have a valid, fresh cache entry. Build metadata from it.
-        # We'll still compute a confidence score based on the movie instance.
-        # But we need the actual movie instance to get additional fields like genres.
-        # So we retrieve it from the DB using the tmdb_id.
+        # We have a valid, fresh cache entry.
+        # Retrieve the full movie instance from the database.
         try:
             movie = TMDBMovie.objects.get(tmdb_id=cached["external_id"])
             movie._score = 1.0  # high confidence because it was an exact normalized match
         except TMDBMovie.DoesNotExist:
-            # Should not happen, but fallback to using cached dict directly
+            # Cache inconsistency: we have a cached entry but no DB record.
+            # Treat as a miss and fetch fresh from API.
+            logger.warning(
+                "Cached entry exists for external_id %s but no DB record. Fetching from TMDB.",
+                cached["external_id"]
+            )
             movie = None
-            # We can construct a metadata dict directly from cached data
-            return {
-                "tmdb_id": cached["external_id"],
-                "poster": cached["poster"],
-                "banner": cached["backdrop"],
-                "overview": cached["overview"],
-                "rating": cached["rating"],
-                "release_date": cached["release_date"],
-                "runtime": cached["runtime"],
-                "duration": cached["runtime"],
-                "original_title": cached["original_title"],
-                "original_language": cached["language"],
-                "genres": cached["genres"],  # list
-                "status": cached["status"],
-                "confidence_score": 1.0,
-            }
+
     # If no fresh cache entry, proceed to traditional queries
     # (they may return stale entries but we will also add a staleness check below)
 
@@ -221,20 +216,32 @@ def search_movie_metadata(title, year=None):
                 except ValueError:
                     pass
 
-            # Prepare metadata dict in the unified schema used by save_metadata
+            # Helper to convert list of dicts to comma-separated string
+            def extract_names(items, key="name"):
+                return ", ".join([item.get(key, "").strip() for item in items if item.get(key)])
+
+            # Build metadata dict with all available fields
             metadata = {
                 "external_id": details["id"],
                 "title": details.get("title") or "",
                 "overview": details.get("overview") or "",
                 "poster": details.get("poster_path") or "",
                 "backdrop": details.get("backdrop_path") or "",
-                "genres": [g["name"] for g in details.get("genres", [])],
+                "genres": ", ".join([g["name"] for g in details.get("genres", [])]),
                 "release_date": release_date.isoformat() if release_date else None,
                 "rating": details.get("vote_average"),
                 "runtime": details.get("runtime"),
                 "status": details.get("status") or "",
                 "original_title": details.get("original_title") or "",
                 "language": details.get("original_language") or "",
+                # New fields
+                "tagline": details.get("tagline") or "",
+                "budget": details.get("budget") or 0,
+                "revenue": details.get("revenue") or 0,
+                "vote_count": details.get("vote_count") or 0,
+                "production_companies": extract_names(details.get("production_companies", [])),
+                "production_countries": extract_names(details.get("production_countries", []), key="name"),
+                "spoken_languages": extract_names(details.get("spoken_languages", []), key="name"),
             }
 
             # Save to cache (this will also update the updated_at timestamp)
@@ -291,6 +298,19 @@ def search_movie_metadata(title, year=None):
     if movie.genres:
         genres = [g.strip() for g in movie.genres.split(",") if g.strip()]
 
+    # New fields: convert comma-separated strings to lists
+    production_companies = []
+    if movie.production_companies:
+        production_companies = [c.strip() for c in movie.production_companies.split(",") if c.strip()]
+
+    production_countries = []
+    if movie.production_countries:
+        production_countries = [c.strip() for c in movie.production_countries.split(",") if c.strip()]
+
+    spoken_languages = []
+    if movie.spoken_languages:
+        spoken_languages = [l.strip() for l in movie.spoken_languages.split(",") if l.strip()]
+
     metadata = {
         "tmdb_id": movie.tmdb_id,
         "poster": poster,
@@ -305,6 +325,14 @@ def search_movie_metadata(title, year=None):
         "genres": genres,
         "status": movie.status,
         "confidence_score": getattr(movie, '_score', 0.0),
+        # New fields
+        "tagline": movie.tagline or "",
+        "budget": movie.budget or 0,
+        "revenue": movie.revenue or 0,
+        "vote_count": movie.vote_count or 0,
+        "production_companies": production_companies,
+        "production_countries": production_countries,
+        "spoken_languages": spoken_languages,
     }
     return metadata
 
@@ -318,7 +346,10 @@ def apply_metadata_to_movie(movie_instance, title, year=None):
         movie_instance: A Django model instance (e.g., TelegramMovie)
                         with fields: tmdb_id, poster, banner, overview,
                         rating, release_date, duration, genres,
-                        original_title, original_language, status.
+                        original_title, original_language, status,
+                        tagline, budget, revenue, vote_count,
+                        production_companies, production_countries,
+                        spoken_languages.
         title (str): movie title to search for
         year (int, optional): release year
 
@@ -343,6 +374,14 @@ def apply_metadata_to_movie(movie_instance, title, year=None):
         "original_language": "original_language",
         "genres": "genres",
         "status": "status",
+        # New fields
+        "tagline": "tagline",
+        "budget": "budget",
+        "revenue": "revenue",
+        "vote_count": "vote_count",
+        "production_companies": "production_companies",
+        "production_countries": "production_countries",
+        "spoken_languages": "spoken_languages",
     }
 
     updated_fields = []
