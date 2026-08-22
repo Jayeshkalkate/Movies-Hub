@@ -290,7 +290,6 @@ TELEGRAM_SECRET = os.getenv("TELEGRAM_SECRET", "")
 if not DEBUG and not TELEGRAM_SECRET:
     raise ValueError("TELEGRAM_SECRET environment variable is required.")
 
-# Render Proxy Support
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # --------------------------------------------------
