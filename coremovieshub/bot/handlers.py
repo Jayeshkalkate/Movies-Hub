@@ -605,11 +605,10 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     manager = get_manager()
     if manager is None:
         logger.error("Metadata manager not available.")
-        # Raise an exception so Telegram knows this update failed
         raise RuntimeError("Metadata manager is not available")
 
-    # Process caption – let any exception propagate
-    metadata = manager.process_caption(
+    # ✅ FIX: await the async method
+    metadata = await manager.process_caption(
         caption=caption,
         filename=filename,
         telegram_file_id=media.file_id,
@@ -617,10 +616,8 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if not metadata:
         logger.warning("Metadata manager returned empty for caption: %s", caption[:50])
-        # Optionally raise an error to indicate failure, or just return
-        # Raising is safer to avoid silent failures
         raise ValueError("Metadata manager returned empty result")
 
-    # Save movie – let any exception propagate
+    # Save movie – synchronous, but wrapped with @sync_to_async
     await save_movie_from_metadata(post, channel, media, metadata)
     logger.info("Movie processing complete for message %s", post.message_id)
