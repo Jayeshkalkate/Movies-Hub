@@ -1,7 +1,7 @@
-
 {% extends "base.html" %}
 {% load static %}
 {% static "images/no-poster.jpg" as no_poster %}
+
 {% block title %}Movie Library | MoviesHub{% endblock %}
 
 {% block content %}
@@ -37,7 +37,7 @@
                         <!-- Poster with overlay info -->
                         <div class="position-relative poster-wrapper">
                             {% if movie.poster %}
-                                <img src="{{ movie.poster }}"
+                                <img src="{% if movie.poster.url %}{{ movie.poster.url }}{% else %}{{ movie.poster }}{% endif %}"
                                      class="card-img-top rounded-3"
                                      alt="{{ movie.title }}"
                                      loading="lazy"
@@ -86,51 +86,15 @@
                                     {{ movie.category.name }}
                                 </span>
                             {% endif %}
-                            <!-- You can add more genre badges if you have a many-to-many field -->
                         </div>
                     </div>
                 </div>
             {% endfor %}
         </div>
 
-        <!-- Pagination -->
-        {% if page_obj and page_obj.paginator.num_pages > 1 %}
-        <nav class="mt-5">
-            <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page=1">
-                            <i class="bi bi-chevron-double-left"></i>
-                        </a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.previous_page_number }}">
-                            <i class="bi bi-chevron-left"></i>
-                        </a>
-                    </li>
-                {% endif %}
+        <!-- Pagination – FIXED INCLUDE PATH -->
+        {% include 'includes/pagination.html' with page_obj=page_obj query_params=request.GET.urlencode %}
 
-                <li class="page-item disabled">
-                    <span class="page-link bg-light">
-                        {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
-                    </span>
-                </li>
-
-                {% if page_obj.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.next_page_number }}">
-                            <i class="bi bi-chevron-right"></i>
-                        </a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page_obj.paginator.num_pages }}">
-                            <i class="bi bi-chevron-double-right"></i>
-                        </a>
-                    </li>
-                {% endif %}
-            </ul>
-        </nav>
-        {% endif %}
     {% else %}
         <!-- Empty state -->
         <div class="alert alert-info text-center py-5">
@@ -174,7 +138,7 @@
         border-radius: 0.5rem;
     }
     .poster-wrapper .badge {
-        pointer-events: none; /* so they don't block clicks */
+        pointer-events: none;
     }
 </style>
 {% endblock %}

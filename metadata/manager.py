@@ -437,17 +437,17 @@ class Manager:
         # Step 4: Check cache
         cache_hit = False
         # Try by telegram_file_id first if provided
-        if telegram_file_id and self.find_by_external_id_fn:
-            try:
-                cached = self.find_by_external_id_fn(telegram_file_id, "tmdb")
-                if cached:
-                    logger.info("CACHE HIT (by telegram_file_id): %s", telegram_file_id)
-                    cache_hit = True
-                    logger.info("UPLOAD COMPLETE (cached)")
-                    logger.info("=" * 60)
-                    return cached
-            except Exception as e:
-                logger.warning(f"STAGE: CACHE -> Lookup by telegram_file_id failed: {e}")
+        # if telegram_file_id and self.find_by_external_id_fn:
+        #     try:
+        #         cached = self.find_by_external_id_fn(telegram_file_id, "tmdb")
+        #         if cached:
+        #             logger.info("CACHE HIT (by telegram_file_id): %s", telegram_file_id)
+        #             cache_hit = True
+        #             logger.info("UPLOAD COMPLETE (cached)")
+        #             logger.info("=" * 60)
+        #             return cached
+        #     except Exception as e:
+        #         logger.warning(f"STAGE: CACHE -> Lookup by telegram_file_id failed: {e}")
 
         # Then by title/year/type
         if not cache_hit:

@@ -1,18 +1,16 @@
 {% extends "base.html" %}
 
+{% block title %}Upload Movie | MoviesHub{% endblock %}
+
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-lg-8 col-md-10">
-            <!-- Card container for the upload form -->
             <div class="card shadow-sm border-0 rounded-4">
                 <div class="card-header bg-white py-3 border-bottom-0">
-                    <h2 class="mb-0 fw-bold text-primary">
-                        <i class="bi bi-cloud-upload"></i> Upload Movie to Telegram
-                    </h2>
+                    <h2 class="mb-0 fw-bold text-primary"><i class="bi bi-cloud-upload"></i> Upload Movie to Telegram</h2>
                     <p class="text-muted mt-2">Fill in the details and select a movie file to upload</p>
                 </div>
-
                 <div class="card-body p-4">
                     <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
@@ -21,23 +19,17 @@
                             <div class="mb-4">
                                 <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
                                     {{ field.label }}
-                                    {% if field.field.required %}
-                                        <span class="text-danger">*</span>
-                                    {% endif %}
+                                    {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
                                 </label>
 
                                 {% if field.name == 'poster' %}
-                                    <!-- Poster image preview -->
                                     <div class="mb-2">
                                         <img id="poster-preview" src="#" alt="Poster preview" class="img-thumbnail rounded d-none" style="max-height: 150px;">
                                     </div>
                                     {{ field }}
                                 {% elif field.name == 'movie_file' %}
-                                    <!-- Movie file input with info -->
                                     {{ field }}
-                                    <div class="form-text text-muted small">
-                                        Supported formats: MP4, MKV, AVI (max 2GB)
-                                    </div>
+                                    <div class="form-text text-muted small">Supported formats: MP4, MKV, AVI (max 2GB)</div>
                                 {% else %}
                                     {{ field }}
                                 {% endif %}
@@ -51,7 +43,6 @@
                             </div>
                         {% endfor %}
 
-                        <!-- Action Buttons -->
                         <div class="d-flex justify-content-between align-items-center mt-4 pt-2">
                             <a href="{% url 'movie_management' %}" class="btn btn-outline-secondary px-4">
                                 <i class="bi bi-arrow-left"></i> Cancel
@@ -67,12 +58,11 @@
     </div>
 </div>
 
-<!-- JavaScript for live poster preview -->
+<!-- Live poster preview -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const posterInput = document.querySelector('input[name="poster"]');
         const previewImg = document.getElementById('poster-preview');
-
         if (posterInput && previewImg) {
             posterInput.addEventListener('change', function(event) {
                 const file = event.target.files[0];

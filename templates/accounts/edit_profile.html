@@ -1,6 +1,8 @@
-{% block title %}
-Edit Profile | MoviesHub
-{% endblock %}
+{% extends 'base.html' %}
+
+{% block title %}Edit Profile | MoviesHub{% endblock %}
+
+{% block content %}
 <div class="container mt-5">
   <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
@@ -15,60 +17,44 @@ Edit Profile | MoviesHub
         </div>
         <div class="card-body p-4">
           <form method="post" enctype="multipart/form-data" novalidate>
-            {% csrf_token %} {% for field in form %}
+            {% csrf_token %}
+
+            {% for field in form %}
             <div class="mb-4">
-              <label
-                for="{{ field.id_for_label }}"
-                class="form-label fw-semibold"
-              >
-                {{ field.label }} {% if field.field.required %}
-                <span class="text-danger">*</span>
-                {% endif %}
+              <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                {{ field.label }}
+                {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
               </label>
 
               {% if field.name == 'profile_picture' or field.name == 'avatar' %}
-              <!-- Profile picture preview -->
-              <div class="mb-2">
-                {% if user.profile_picture %}
-                <img
-                  id="image-preview"
-                  src="{% if user.profile_picture %}
-                  <img src="{{ user.profile_picture.url }}">
-                  {% endif %}"
-                  alt="Current profile picture"
-                  class="rounded-circle"
-                  style="width: 100px; height: 100px; object-fit: cover"
-                />
-                {% else %}
-                <img
-                  id="image-preview"
-                  src="#"
-                  alt="Preview"
-                  class="rounded-circle d-none"
-                  style="width: 100px; height: 100px; object-fit: cover"
-                />
-                {% endif %}
-              </div>
-              {{ field }}
-              <div class="form-text text-muted small">
-                Allowed formats: JPG, PNG, GIF. Max size 2MB.
-              </div>
-              {% else %} {{ field }} {% endif %} {% if field.help_text and
-              field.name != 'profile_picture' %}
-              <div class="form-text text-muted small">
-                {{ field.help_text }}
-              </div>
-              {% endif %} {% for error in field.errors %}
-              <div class="invalid-feedback d-block">{{ error }}</div>
+                <!-- Profile picture preview -->
+                <div class="mb-2">
+                  <img id="image-preview"
+                       src="{% if user.profile_picture %}{{ user.profile_picture.url }}{% else %}#{% endif %}"
+                       alt="Profile picture preview"
+                       class="rounded-circle {% if not user.profile_picture %}d-none{% endif %}"
+                       style="width: 100px; height: 100px; object-fit: cover; border: 2px solid #ddd;" />
+                </div>
+                {{ field }}
+                <div class="form-text text-muted small">
+                  Allowed formats: JPG, PNG, GIF. Max size 2MB.
+                </div>
+              {% else %}
+                {{ field }}
+              {% endif %}
+
+              {% if field.help_text and field.name != 'profile_picture' %}
+                <div class="form-text text-muted small">{{ field.help_text }}</div>
+              {% endif %}
+
+              {% for error in field.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
               {% endfor %}
             </div>
             {% endfor %}
 
             <div class="d-flex justify-content-between gap-3 mt-4 pt-2">
-              <a
-                href="{% url 'profile' %}"
-                class="btn btn-outline-secondary px-4"
-              >
+              <a href="{% url 'profile' %}" class="btn btn-outline-secondary px-4">
                 <i class="bi bi-arrow-left"></i> Cancel
               </a>
               <button type="submit" class="btn btn-primary px-5">
@@ -86,7 +72,7 @@ Edit Profile | MoviesHub
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const imageInput = document.querySelector(
-      'input[type="file"][name*="profile_picture"], input[type="file"][name*="avatar"]',
+      'input[type="file"][name*="profile_picture"], input[type="file"][name*="avatar"]'
     );
     const preview = document.getElementById("image-preview");
 
@@ -101,21 +87,16 @@ Edit Profile | MoviesHub
           };
           reader.readAsDataURL(file);
         } else {
-          // If no new file selected, keep current or hide preview
-          if (preview.dataset.original) {
-            preview.src = preview.dataset.original;
+          // If no file selected, revert to current or hide
+          const currentSrc = "{% if user.profile_picture %}{{ user.profile_picture.url }}{% endif %}";
+          if (currentSrc) {
+            preview.src = currentSrc;
+            preview.classList.remove("d-none");
           } else {
             preview.classList.add("d-none");
           }
         }
       });
-
-      // Store original image URL if exists
-      if (preview.src && preview.src !== "#") {
-        preview.dataset.original = preview.src;
-      } else {
-        preview.classList.add("d-none");
-      }
     }
   });
 </script>

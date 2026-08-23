@@ -1,8 +1,9 @@
-{% extends 'base.html' %} {% block title %}{{ category.name }} Movies |
-MoviesHub{% endblock %} {% block content %}
-
+{% extends 'base.html' %}
 {% load static %}
 
+{% block title %}{{ category.name }} Movies | MoviesHub{% endblock %}
+
+{% block content %}
 <div class="container mt-4">
   <!-- Category Header -->
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
@@ -11,8 +12,11 @@ MoviesHub{% endblock %} {% block content %}
         <i class="bi bi-tag"></i> {{ category.name }}
       </h1>
       <p class="text-muted">
-        {% if page_obj %} {{ page_obj.paginator.count }} movies in this category
-        {% else %} Explore movies in {{ category.name }} {% endif %}
+        {% if page_obj %}
+          {{ page_obj.paginator.count }} movies in this category
+        {% else %}
+          Explore movies in {{ category.name }}
+        {% endif %}
       </p>
     </div>
     <a href="{% url 'video_list' %}" class="btn btn-outline-secondary">
@@ -25,66 +29,45 @@ MoviesHub{% endblock %} {% block content %}
   <div class="row g-4">
     {% for movie in page_obj %}
     <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-      <div
-        class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden hover-card"
-      >
+      <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden hover-card">
         <!-- Poster -->
         <div class="position-relative">
           {% if movie.poster %}
-          <img
-            src="{{ movie.poster }}"
-            class="card-img-top"
-            alt="{{ movie.title }}"
-            style="height: 280px; object-fit: cover"
-            onerror="
-              this.onerror = null;
-              this.src = '{% static 'images/no-poster.jpg' %}';
-            "
-          />
+            <img src="{% if movie.poster.url %}{{ movie.poster.url }}{% else %}{{ movie.poster }}{% endif %}"
+                 class="card-img-top" alt="{{ movie.title }}"
+                 style="height: 280px; object-fit: cover"
+                 onerror="this.onerror=null; this.src='{% static 'images/no-poster.jpg' %}'">
           {% else %}
-          <div
-            class="bg-secondary text-white d-flex align-items-center justify-content-center"
-            style="height: 280px"
-          >
-            <div class="text-center">
-              <i class="bi bi-camera-reels fs-1"></i>
-              <p class="mb-0 small">No Poster</p>
+            <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 280px;">
+              <div class="text-center">
+                <i class="bi bi-camera-reels fs-1"></i>
+                <p class="mb-0 small">No Poster</p>
+              </div>
             </div>
-          </div>
           {% endif %}
           <!-- View count overlay -->
-          <div
-            class="position-absolute bottom-0 end-0 bg-dark bg-opacity-75 text-white px-2 py-1 m-2 rounded-pill small"
-          >
+          <div class="position-absolute bottom-0 end-0 bg-dark bg-opacity-75 text-white px-2 py-1 m-2 rounded-pill small">
             <i class="bi bi-eye"></i> {{ movie.views }}
           </div>
         </div>
 
         <div class="card-body d-flex flex-column">
-          <h5 class="card-title fw-semibold text-truncate">
-            {{ movie.title }}
-          </h5>
+          <h5 class="card-title fw-semibold text-truncate">{{ movie.title }}</h5>
           <p class="card-text text-muted small mb-3">
-             {% if movie.overview %}
-                {{ movie.overview|truncatewords:12 }}
-             {% elif movie.description %}
-                {{ movie.description|truncatewords:12 }}
-             {% else %}
-                No description available.
-             {% endif %}
+            {% if movie.overview %}
+              {{ movie.overview|truncatewords:12 }}
+            {% elif movie.description %}
+              {{ movie.description|truncatewords:12 }}
+            {% else %}
+              No description available.
+            {% endif %}
           </p>
           <div class="mb-2">
-            {% if movie.year %}
-            <span class="badge bg-secondary">{{ movie.year }}</span>
-            {% endif %} {% if movie.quality %}
-            <span class="badge bg-dark">{{ movie.quality }}</span>
-            {% endif %}
+            {% if movie.year %}<span class="badge bg-secondary">{{ movie.year }}</span>{% endif %}
+            {% if movie.quality %}<span class="badge bg-dark">{{ movie.quality }}</span>{% endif %}
           </div>
           <div class="mt-auto">
-            <a
-              href="{% url 'movie_detail' movie.id %}"
-              class="btn btn-outline-primary btn-sm w-100"
-            >
+            <a href="{% url 'movie_detail' movie.id %}" class="btn btn-outline-primary btn-sm w-100">
               <i class="bi bi-info-circle"></i> View Details
             </a>
           </div>
@@ -92,8 +75,7 @@ MoviesHub{% endblock %} {% block content %}
 
         <div class="card-footer bg-white border-top-0 pt-0 pb-3">
           <small class="text-muted">
-            <i class="bi bi-calendar"></i> {{ movie.created_at|date:"M d,
-            Y"|default:"Recently" }}
+            <i class="bi bi-calendar"></i> {{ movie.created_at|date:"M d, Y"|default:"Recently" }}
           </small>
         </div>
       </div>
@@ -101,26 +83,23 @@ MoviesHub{% endblock %} {% block content %}
     {% endfor %}
   </div>
 
-  <!-- Enhanced Pagination -->
-  {% include 'includes/pagination.html' with page_obj=page_obj %} {% else %}
+  <!-- Pagination (preserve category filter) -->
+  {% include 'pagination.html' with page_obj=page_obj query_params=request.GET.urlencode %}
+
+  {% else %}
   <!-- Empty state -->
   <div class="alert alert-info text-center py-5">
     <i class="bi bi-folder-x fs-1"></i>
     <h4 class="mt-2">No movies in this category yet</h4>
     <p class="mb-0">Check back later or browse other categories.</p>
-    <a href="{% url 'video_list' %}" class="btn btn-sm btn-outline-primary mt-3"
-      >Browse All Movies</a
-    >
+    <a href="{% url 'video_list' %}" class="btn btn-sm btn-outline-primary mt-3">Browse All Movies</a>
   </div>
   {% endif %}
 </div>
 
-<!-- Optional hover effect CSS (same as other templates) -->
 <style>
   .hover-card {
-    transition:
-      transform 0.2s ease,
-      box-shadow 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
   .hover-card:hover {
     transform: translateY(-5px);

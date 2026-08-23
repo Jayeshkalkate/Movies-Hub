@@ -426,7 +426,7 @@ def admin_dashboard(request):
             membership_status=True
         ).count(),
 
-        "recent_movies": TelegramMovie.objects.select_related(
+        "latest_movies": TelegramMovie.objects.select_related(
             "category"
         ).order_by("-created_at")[:10],
 
@@ -662,7 +662,6 @@ def search_movies(request):
     )
 
 from django.db import OperationalError
-
 def home(request):
     try:
         latest_movies = list(
@@ -682,13 +681,16 @@ def home(request):
         )
 
     except OperationalError as e:
-        logger.exception(
-            f"Database Error: {e}"
-        )
-
+        logger.exception(f"Database Error: {e}")
         latest_movies = []
         featured_movies = []
         categories = []
+
+    # ----- ADD THIS BLOCK to compute is_verified -----
+    is_verified = False
+    if request.user.is_authenticated:
+        verification, _ = MembershipVerification.objects.get_or_create(user=request.user)
+        is_verified = verification.membership_status
 
     return render(
         request,
@@ -697,6 +699,7 @@ def home(request):
             "latest_movies": latest_movies,
             "featured_movies": featured_movies,
             "categories": categories,
+            "is_verified": is_verified,
         }
     )
     

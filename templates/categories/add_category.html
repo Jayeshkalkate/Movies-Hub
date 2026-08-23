@@ -17,9 +17,7 @@
           <h3 class="mb-0 fw-bold text-primary">
             <i class="bi bi-tag" aria-hidden="true"></i> Add New Category
           </h3>
-          <p class="text-muted mt-2 mb-0">
-            Create a category to organize your movies
-          </p>
+          <p class="text-muted mt-2 mb-0">Create a category to organize your movies</p>
         </div>
         <div class="card-body p-4">
           <form method="post" novalidate>
@@ -105,18 +103,15 @@
 
 {% block extra_js %}
 <script>
-  // Automatically add Bootstrap classes to form fields
   document.addEventListener('DOMContentLoaded', function() {
     const nameField = document.getElementById('{{ form.name.id_for_label }}');
     if (nameField) {
       nameField.classList.add('form-control');
-      // Handle validation states
       {% if form.name.errors %}
         nameField.classList.add('is-invalid');
       {% else %}
         nameField.classList.add('is-valid');
       {% endif %}
-      // Set autofocus
       nameField.focus();
     }
   });

@@ -1,39 +1,45 @@
 {% extends "base.html" %}
 
+{% block title %}Join Channel for {{ movie.title }} | MoviesHub{% endblock %}
+
 {% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+        <div class="card-header bg-primary text-white text-center py-4">
+          <i class="bi bi-telegram fs-1"></i>
+          <h3 class="mb-0 fw-bold mt-2">Join Channel to Access</h3>
+          <p class="mb-0 mt-1">{{ movie.title }}</p>
+        </div>
+        <div class="card-body p-4 text-center">
+          <p class="mb-4">
+            Please join the Telegram channel below to unlock this movie.
+          </p>
 
-<h2>
-Join Channel to Access
-{{ movie.title }}
-</h2>
+          <a href="{{ movie.telegram_message_link }}" target="_blank" class="btn btn-success btn-lg px-5 mb-4">
+            <i class="bi bi-telegram"></i> Join Channel
+          </a>
 
-<p>
-Please join the Telegram channel below.
-</p>
+          <div class="alert alert-light border rounded-4 p-3 mb-4">
+            <i class="bi bi-info-circle-fill text-primary me-2"></i>
+            <span class="small">After joining, click the button below to confirm.</span>
+          </div>
 
-<a
-href="{{ movie.telegram_message_link }}"
-target="_blank"
-class="btn btn-primary"
->
-
-Join Channel
-
-</a>
-
-<form method="post">
-
-    {% csrf_token %}
-
-    <button
-        type="submit"
-        class="btn btn-success mt-3"
-    >
-
-        I've Joined
-
-    </button>
-
-</form>
-
+          <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary px-4">
+              <i class="bi bi-check2-circle"></i> I've Joined — Verify Now
+            </button>
+          </form>
+        </div>
+        <div class="card-footer bg-white text-center py-3">
+          <small class="text-muted">
+            Need help? <a href="{% url 'contact' %}" class="text-decoration-none">Contact support</a>
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

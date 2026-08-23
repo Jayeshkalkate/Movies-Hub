@@ -1,5 +1,8 @@
-{% extends 'base.html' %} {% block title %}Checking Verification Status |
-MoviesHub{% endblock %} {% block content %}
+{% extends 'base.html' %}
+
+{% block title %}Checking Verification Status | MoviesHub{% endblock %}
+
+{% block content %}
 <div class="container mt-5">
   <div class="row justify-content-center">
     <div class="col-md-6 col-lg-5">
@@ -18,20 +21,15 @@ MoviesHub{% endblock %} {% block content %}
           </p>
 
           <!-- Spinner -->
-          <div
-            class="spinner-border text-primary"
-            role="status"
-            style="width: 3rem; height: 3rem"
-          >
+          <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
             <span class="visually-hidden">Loading...</span>
           </div>
 
           <p class="mt-4 small text-muted">
-            <i class="bi bi-clock-history"></i> This will only take a few
-            seconds.
+            <i class="bi bi-clock-history"></i> This will only take a few seconds.
           </p>
 
-          <!-- Progress message that updates via JS (optional) -->
+          <!-- Status message (visible after 1 second) -->
           <div id="status-message" class="alert alert-info mt-3 d-none">
             <i class="bi bi-info-circle"></i>
             <span>Redirecting you shortly...</span>
@@ -42,15 +40,13 @@ MoviesHub{% endblock %} {% block content %}
   </div>
 </div>
 
-<!-- JavaScript redirect with countdown (better than meta refresh) -->
+<!-- JavaScript redirect with countdown -->
 <script>
   (function () {
-    // Redirect URL
     const redirectUrl = "{% url 'video_list' %}";
     let secondsLeft = 3;
     const statusDiv = document.getElementById("status-message");
 
-    // Show status message after 1 second
     setTimeout(function () {
       if (statusDiv) {
         statusDiv.classList.remove("d-none");
@@ -58,12 +54,10 @@ MoviesHub{% endblock %} {% block content %}
         if (span) {
           span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
         }
-        // Update countdown every second
         const interval = setInterval(function () {
           secondsLeft--;
           if (secondsLeft > 0) {
-            if (span)
-              span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
+            if (span) span.innerText = `Redirecting you to the movie library in ${secondsLeft} seconds...`;
           } else {
             clearInterval(interval);
           }
@@ -71,15 +65,13 @@ MoviesHub{% endblock %} {% block content %}
       }
     }, 1000);
 
-    // Perform redirect after 3 seconds
     setTimeout(function () {
       window.location.href = redirectUrl;
     }, 3000);
   })();
 </script>
 
-<!-- Optional: If you want to auto-refresh using meta as fallback (remove if JS is reliable) -->
 <noscript>
-  <meta http-equiv="refresh" content="3; url={% url 'video_list' %}" />
+  <meta http-equiv="refresh" content="3; url={% url 'video_list' %}">
 </noscript>
 {% endblock %}

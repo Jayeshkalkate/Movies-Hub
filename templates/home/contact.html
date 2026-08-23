@@ -15,16 +15,6 @@
         </p>
     </div>
 
-    <!-- Django Messages -->
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-
     <div class="row g-4">
 
         <!-- Contact Information -->
@@ -47,8 +37,7 @@
                         <i class="bi bi-envelope-fill fs-4 text-primary me-3"></i>
                         <div>
                             <strong>Email</strong><br>
-                            <a href="mailto:kalkatejayesh@gmail.com"
-                               class="text-decoration-none">
+                            <a href="mailto:kalkatejayesh@gmail.com" class="text-decoration-none">
                                 kalkatejayesh@gmail.com
                             </a>
                         </div>
@@ -60,41 +49,40 @@
                         <div>
                             <strong>Instagram</strong><br>
                             <a href="https://www.instagram.com/jayesh.kalkate?igsh=MW1rbm1sazcycGo4eg%3D%3D"
-                               target="_blank"
-                               class="text-decoration-none">
+                               target="_blank" class="text-decoration-none">
                                 @jayesh.kalkate
                             </a>
                         </div>
                     </div>
 
-                    <!-- Telegram -->
-                    <div class="d-flex align-items-center mb-4">
-                        <i class="bi bi-telegram fs-4 text-info me-3"></i>
-                        <div>
-                            <strong>MoviesHub Telegram Bot</strong><br>
-                            <a href="https://t.me/+6qQzYjLWp2hiNzll"
-                               target="_blank"
-                               class="text-decoration-none">
-                                @jaymovieshubbot
-                            </a>
+                    <!-- Telegram Channels (fixed layout) -->
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-telegram fs-4 text-info me-3"></i>
+                            <div>
+                                <strong>MoviesHub Telegram Bot</strong><br>
+                                <a href="https://t.me/+6qQzYjLWp2hiNzll" target="_blank" class="text-decoration-none">
+                                    @jaymovieshubbot
+                                </a>
+                            </div>
                         </div>
-                        <i class="bi bi-telegram fs-4 text-info me-3"></i>
-                        <div>
-                            <strong>MoviesHub community</strong><br>
-                            <a href="https://t.me/+7mBO_OCoLxxkNjI1"
-                               target="_blank"
-                               class="text-decoration-none">
-                                Join Our MoviesHub community !
-                            </a>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-telegram fs-4 text-info me-3"></i>
+                            <div>
+                                <strong>MoviesHub Community</strong><br>
+                                <a href="https://t.me/+7mBO_OCoLxxkNjI1" target="_blank" class="text-decoration-none">
+                                    Join Our Community
+                                </a>
+                            </div>
                         </div>
-                        <i class="bi bi-telegram fs-4 text-info me-3"></i>
-                        <div>
-                            <strong>MoviesHub Members</strong><br>
-                            <a href="https://t.me/+6qQzYjLWp2hiNzll"
-                               target="_blank"
-                               class="text-decoration-none">
-                                MoviesHub Members
-                            </a>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-telegram fs-4 text-info me-3"></i>
+                            <div>
+                                <strong>MoviesHub Members</strong><br>
+                                <a href="https://t.me/+6qQzYjLWp2hiNzll" target="_blank" class="text-decoration-none">
+                                    MoviesHub Members
+                                </a>
+                            </div>
                         </div>
                     </div>
 
@@ -103,9 +91,7 @@
                         <i class="bi bi-linkedin fs-4 text-primary me-3"></i>
                         <div>
                             <strong>LinkedIn</strong><br>
-                            <a href="https://www.linkedin.com/in/jayesh-kalkate-31a250242"
-                               target="_blank"
-                               class="text-decoration-none">
+                            <a href="https://www.linkedin.com/in/jayesh-kalkate-31a250242" target="_blank" class="text-decoration-none">
                                 Jayesh Kalkate
                             </a>
                         </div>
@@ -116,9 +102,7 @@
                         <i class="bi bi-globe fs-4 text-success me-3"></i>
                         <div>
                             <strong>Portfolio Website</strong><br>
-                            <a href="https://devjayesh-portfolio.netlify.app/"
-                               target="_blank"
-                               class="text-decoration-none">
+                            <a href="https://devjayesh-portfolio.netlify.app/" target="_blank" class="text-decoration-none">
                                 DEVJAYESH
                             </a>
                         </div>
@@ -129,9 +113,7 @@
                         <i class="bi bi-github fs-4 text-dark me-3"></i>
                         <div>
                             <strong>GitHub</strong><br>
-                            <a href="https://github.com/Jayeshkalkate"
-                               target="_blank"
-                               class="text-decoration-none">
+                            <a href="https://github.com/Jayeshkalkate" target="_blank" class="text-decoration-none">
                                 Jayeshkalkate
                             </a>
                         </div>
@@ -151,7 +133,7 @@
                         Send a Message
                     </h3>
 
-                    <form method="POST" action="{% url 'contact' %}">
+                    <form method="POST" action="{% url 'contact' %}" novalidate>
                         {% csrf_token %}
 
                         <!-- Name -->
@@ -159,18 +141,10 @@
                             <label for="name" class="form-label fw-semibold">
                                 Full Name <span class="text-danger">*</span>
                             </label>
-
                             <div class="input-group">
-                                <span class="input-group-text bg-white">
-                                    <i class="bi bi-person"></i>
-                                </span>
-
-                                <input type="text"
-                                       class="form-control"
-                                       id="name"
-                                       name="name"
-                                       placeholder="John Doe"
-                                       required>
+                                <span class="input-group-text bg-white"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="name" name="name"
+                                       placeholder="John Doe" required>
                             </div>
                         </div>
 
@@ -179,18 +153,10 @@
                             <label for="email" class="form-label fw-semibold">
                                 Email Address <span class="text-danger">*</span>
                             </label>
-
                             <div class="input-group">
-                                <span class="input-group-text bg-white">
-                                    <i class="bi bi-envelope"></i>
-                                </span>
-
-                                <input type="email"
-                                       class="form-control"
-                                       id="email"
-                                       name="email"
-                                       placeholder="name@example.com"
-                                       required>
+                                <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
+                                <input type="email" class="form-control" id="email" name="email"
+                                       placeholder="name@example.com" required>
                             </div>
                         </div>
 
@@ -199,18 +165,10 @@
                             <label for="subject" class="form-label fw-semibold">
                                 Subject <span class="text-danger">*</span>
                             </label>
-
                             <div class="input-group">
-                                <span class="input-group-text bg-white">
-                                    <i class="bi bi-tag"></i>
-                                </span>
-
-                                <input type="text"
-                                       class="form-control"
-                                       id="subject"
-                                       name="subject"
-                                       placeholder="General Inquiry"
-                                       required>
+                                <span class="input-group-text bg-white"><i class="bi bi-tag"></i></span>
+                                <input type="text" class="form-control" id="subject" name="subject"
+                                       placeholder="General Inquiry" required>
                             </div>
                         </div>
 
@@ -219,22 +177,13 @@
                             <label for="message" class="form-label fw-semibold">
                                 Message <span class="text-danger">*</span>
                             </label>
-
-                            <textarea class="form-control"
-                                      id="message"
-                                      name="message"
-                                      rows="6"
-                                      placeholder="Write your message here..."
-                                      required></textarea>
+                            <textarea class="form-control" id="message" name="message"
+                                      rows="6" placeholder="Write your message here..." required></textarea>
                         </div>
 
-                        <!-- Submit -->
-                        <button type="submit"
-                                class="btn btn-primary w-100 py-2">
-                            <i class="bi bi-send-fill me-2"></i>
-                            Send Message
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <i class="bi bi-send-fill me-2"></i> Send Message
                         </button>
-
                     </form>
 
                 </div>
@@ -246,8 +195,7 @@
     <!-- Footer Note -->
     <div class="text-center mt-5">
         <p class="text-muted small mb-0">
-            <i class="bi bi-clock"></i>
-            Response time: Typically within 24–48 hours.
+            <i class="bi bi-clock"></i> Response time: Typically within 24–48 hours.
         </p>
     </div>
 
