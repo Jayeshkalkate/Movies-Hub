@@ -13,81 +13,7 @@ from .models import (
     TelegramMovie,
 )
 
-from .services.movie_metadata import search_movie_metadata
-
 admin.site.register(CustomUser, UserAdmin)
-
-
-@admin.action(description="Enrich selected movies")
-def enrich_tmdb(modeladmin, request, queryset):
-    """
-    Fetch metadata from TMDB and update selected movies.
-    """
-
-    updated_count = 0
-
-    for movie in queryset:
-        try:
-            metadata = search_movie_metadata(
-                movie.title,
-                movie.year,
-            )
-
-            if not metadata:
-                continue
-
-            # Update fields only if data exists
-            movie.description = (
-                metadata.get("overview")
-                or movie.description
-            )
-
-            movie.rating = (
-                metadata.get("rating")
-                or movie.rating
-            )
-            
-            movie.poster = (
-                metadata.get("poster")
-                or movie.poster
-            )
-            
-            movie.banner = (
-                metadata.get("banner")
-                or movie.banner
-            )
-            
-            movie.tmdb_id = (
-                metadata.get("tmdb_id")
-                or movie.tmdb_id
-            )
-            
-            movie.release_date = (
-                metadata.get("release_date")
-                or movie.release_date
-            )
-            
-            movie.overview = (
-                metadata.get("overview")
-                or movie.overview
-            )
-
-            movie.save()
-
-            updated_count += 1
-
-        except Exception as exc:
-            modeladmin.message_user(
-                request,
-                f"Failed to enrich '{movie.title}': {exc}",
-                level=messages.WARNING,
-            )
-
-    modeladmin.message_user(
-        request,
-        f"Successfully enriched {updated_count} movie(s).",
-        level=messages.SUCCESS,
-    )
 
 
 @admin.register(Category)
@@ -186,9 +112,9 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         "rating",
         "year",
         "tmdb_id",
-        "status",          # New
-        "language",        # New
-        "has_tmdb",        # Custom boolean indicator
+        "status",
+        "language",
+        "has_tmdb",          # Custom boolean indicator
         "slug",
         "content_type",
         "category",
@@ -206,8 +132,8 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         "quality",
         "is_featured",
         "year",
-        "status",          # New
-        "language",        # New
+        "status",
+        "language",
         "created_at",
     )
 
@@ -230,10 +156,6 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         "updated_at",
     )
 
-    actions = [
-        enrich_tmdb,
-    ]
-
     list_per_page = 100
 
     ordering = (
@@ -246,9 +168,7 @@ class TelegramMovieAdmin(admin.ModelAdmin):
         "is_featured",
     )
 
-    # Custom method to show whether a TMDB ID exists
     def has_tmdb(self, obj):
         return bool(obj.tmdb_id)
     has_tmdb.boolean = True
     has_tmdb.short_description = "Has TMDB ID"
-    

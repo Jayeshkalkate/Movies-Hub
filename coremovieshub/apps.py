@@ -17,4 +17,3 @@ class CoremovieshubConfig(AppConfig):
                 print("✅ Telegram bot auto-initialisation skipped (use 'python manage.py runbot')")
             except Exception as e:
                 print(f"⚠️ Telegram bot initialization skipped: {e}")
-                

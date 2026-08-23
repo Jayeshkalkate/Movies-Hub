@@ -624,4 +624,3 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Save movie – let any exception propagate
     await save_movie_from_metadata(post, channel, media, metadata)
     logger.info("Movie processing complete for message %s", post.message_id)
-    

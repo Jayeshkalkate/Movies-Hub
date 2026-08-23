@@ -246,4 +246,3 @@ class TelegramMovieEditForm(forms.ModelForm):
                 attrs={"class": "form-select"}
             ),
         }
-        

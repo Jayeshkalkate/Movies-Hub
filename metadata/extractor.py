@@ -1,14 +1,28 @@
 # extractor.py
 """
 Compatibility layer for movie metadata extraction.
-Self-contained parser with full support for filenames and captions.
+
+This module provides a simple interface to the robust `movie_parser`
+from `coremovieshub.utils`. It handles parsing of raw text (captions,
+filenames) and returns structured metadata.
+
+Public API:
+    - ExtractedContent: dataclass holding title, year, season, episode,
+                        quality, languages.
+    - extract(text: str) -> ExtractedContent: main entry point.
 """
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
-from coremovieshub.utils.movie_parser import parse_movie
+# Import the actual parser
+try:
+    from coremovieshub.utils.movie_parser import parse_movie
+except ImportError:
+    # Fallback: define a dummy parser that returns empty data
+    def parse_movie(text: str) -> Dict[str, Any]:
+        return {}
 
 # ---------- Logging ----------
 logger = logging.getLogger(__name__)
@@ -17,6 +31,17 @@ logger.addHandler(logging.NullHandler())
 
 @dataclass
 class ExtractedContent:
+    """
+    Structured metadata extracted from a text string.
+
+    Attributes:
+        title: The cleaned movie/show title.
+        year: Release year (if found).
+        season: Season number (if TV series).
+        episode: Episode number (if TV series).
+        quality: Video quality (e.g., "1080p").
+        languages: List of detected language codes.
+    """
     title: Optional[str] = None
     year: Optional[int] = None
     season: Optional[int] = None
@@ -28,15 +53,31 @@ class ExtractedContent:
 # ---------- Public API ----------
 def extract(text: str) -> ExtractedContent:
     """
-    Parse movie metadata from text.
+    Parse movie metadata from raw text.
+
+    This function wraps the `parse_movie` utility and converts its
+    dictionary output into an `ExtractedContent` dataclass.
 
     Args:
         text: Raw caption or filename string.
 
     Returns:
-        ExtractedContent object with title, year, season, episode, quality, languages.
+        ExtractedContent: Structured metadata. If parsing fails,
+                          an empty object with all None/empty fields is returned.
     """
-    data = parse_movie(text)
+    if not text:
+        return ExtractedContent()
+
+    try:
+        data = parse_movie(text)
+        # Ensure data is a dict (it should be)
+        if not isinstance(data, dict):
+            logger.warning(f"parse_movie returned non-dict: {data}")
+            data = {}
+    except Exception as e:
+        logger.exception(f"Error parsing text: {text[:50]}... -> {e}")
+        data = {}
+
     return ExtractedContent(
         title=data.get("title"),
         year=data.get("year"),
@@ -50,7 +91,7 @@ def extract(text: str) -> ExtractedContent:
 # ---------- Simple self-test (run with python extractor.py) ----------
 if __name__ == "__main__":
     import sys
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     test_cases = [
         ("The.Matrix.1999.1080p.BluRay.x264-AAA", "Movie with year and quality"),
@@ -69,4 +110,3 @@ if __name__ == "__main__":
         print(f"\n{desc}:")
         print(f"  Input: {text}")
         print(f"  Output: {result}")
-        

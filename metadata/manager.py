@@ -5,7 +5,7 @@ Main orchestration manager for content discovery and caching.
 This module ties together the extraction, detection, caching, and provider
 fetching layers to deliver a complete metadata pipeline from a Telegram caption.
 
-Workflow (Phase 2):
+Workflow:
     1. Extract structured data from caption (title, year, etc.)
     2. Detect content type (movie, tv, anime, unknown) and augment with
        episode/season patterns, language hints, and anime subtypes.
@@ -23,18 +23,19 @@ Workflow (Phase 2):
 All external dependencies are injected via constructor for testability.
 """
 
+import asyncio
 import logging
 import re
 import traceback
-from difflib import SequenceMatcher
-from typing import Optional, Dict, Any, Callable, List, Tuple
+from typing import Optional, Dict, Any, Callable, List
 
-# ---------------------------------------------------------------------
-# Adjust imports to match your project structure.
-# If any module is missing, define a stub or install the required package.
-# ---------------------------------------------------------------------
-from .extractor import extract, ExtractedContent          # changed from extractor2
-from .tmdb_cache import save_metadata, find_by_title
+from .cache import (
+    save_metadata,
+    find_by_title,
+    find_by_external_id,
+    find_by_telegram_file_id,
+)
+from .extractor import extract, ExtractedContent
 from .detector import detect, ContentType, detect_languages
 from .formatter import (
     format_tmdb,
@@ -89,24 +90,12 @@ class Manager:
     Uses a fallback chain of providers to maximize hit rate, regardless of
     initial content type detection.
 
-    Phase 2 provider ordering:
+    Provider ordering:
         - If content_type == MOVIE: try TMDB Movie only.
         - Otherwise: try TMDB Movie → TMDB TV → TVMaze → AniList → Jikan.
 
-    Attributes:
-        tmdb_client: TMDb client instance.
-        tvmaze_client: TVMaze client instance.
-        jikan_client: Jikan client instance.
-        anilist_client: AniList client instance.
-        find_by_title_fn: Cache lookup function.
-        find_by_external_id_fn: Optional cache lookup by ID.
-        save_metadata_fn: Cache save function.
-        extractor_fn: Extraction function.
-        detector_fn: Detection function.
-        format_tmdb_fn: TMDb formatter function.
-        format_tvmaze_fn: TVMaze formatter function.
-        format_jikan_fn: Jikan formatter function.
-        format_anilist_fn: AniList formatter function.
+    All synchronous I/O is executed in a thread pool to avoid blocking the
+    async event loop.
     """
 
     def __init__(
@@ -116,7 +105,7 @@ class Manager:
         jikan_client: Optional[JikanClient] = None,
         anilist_client: Optional[AniListClient] = None,
         find_by_title_fn: Callable = find_by_title,
-        find_by_external_id_fn: Optional[Callable] = None,
+        find_by_external_id_fn: Optional[Callable] = find_by_external_id,  # fixed default
         save_metadata_fn: Callable = save_metadata,
         extractor_fn: Callable = extract,
         detector_fn: Callable = detect,
@@ -221,7 +210,6 @@ class Manager:
         if provider_type == "tmdb_movie":
             logger.info("=" * 60)
             logger.info("TMDB SEARCH (Movie) | title=%s | year=%s", title, year)
-            # Use the provider's unified workflow: Search → ID → Details
             raw_details = self.tmdb_client.get_best_movie(
                 title=title,
                 year=year,
@@ -231,11 +219,7 @@ class Manager:
             )
             if raw_details:
                 logger.info("TMDB DETAILS (Movie) | id=%s | title=%s", raw_details.get("id"), raw_details.get("title"))
-                # Format using our external formatter
-                formatted = self.format_tmdb_fn(
-                    raw_details,
-                    content_type="movie",
-                )
+                formatted = self.format_tmdb_fn(raw_details, content_type="movie")
             else:
                 logger.debug(f"SEARCH: No TMDb movie results for '{title}'")
                 return None
@@ -251,10 +235,7 @@ class Manager:
             )
             if raw_details:
                 logger.info("TMDB DETAILS (TV) | id=%s | title=%s", raw_details.get("id"), raw_details.get("name"))
-                formatted = self.format_tmdb_fn(
-                    raw_details,
-                    content_type="tv",
-                )
+                formatted = self.format_tmdb_fn(raw_details, content_type="tv")
             else:
                 logger.debug(f"SEARCH: No TMDb TV results for '{title}'")
                 return None
@@ -308,7 +289,6 @@ class Manager:
 
         # Ensure we have a valid result with an external ID
         if formatted and formatted.get("external_id"):
-            # Attach the provider name for logging
             formatted["_provider"] = provider_type
             logger.info("FORMATTER | provider=%s | external_id=%s", provider_type, formatted["external_id"])
             return formatted
@@ -369,125 +349,23 @@ class Manager:
 
         return metadata
 
-    # ---------- Fetch from providers sequentially ----------
-    def _fetch_and_cache(
-        self,
-        extracted: ExtractedContent,
-        content_type: ContentType,
-        telegram_file_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Query providers in order based on content type, stop at first success.
-        Cache the result if found.
-
-        Phase 2 provider ordering:
-            - If content_type == MOVIE: only TMDB Movie.
-            - Else: TMDB Movie → TMDB TV → TVMaze → AniList → Jikan.
-
-        Args:
-            extracted: Extracted content info.
-            content_type: Detected content type (used for provider selection).
-            telegram_file_id: Optional unique ID for cache upsert.
-
-        Returns:
-            Optional[Dict[str, Any]]: Best metadata or None.
-        """
-        title = extracted.title
-        year = extracted.year
-
-        if not title:
-            logger.warning("Cannot fetch: missing title")
-            return None
-
-        # Normalize title for provider searches
-        search_title = clean_text(title)
-        if not search_title:
-            logger.warning(f"Title became empty after normalization, using original '{title}'")
-            search_title = title
-        else:
-            logger.debug(f"Normalized title for search: '{search_title}' (original: '{title}')")
-
-        # ========== Phase 2: provider selection ==========
-        if content_type == ContentType.MOVIE:
-            providers = ["tmdb_movie"]
-        else:
-            providers = ["tmdb_movie", "tmdb_tv", "tvmaze", "anilist", "jikan"]
-
-        logger.info(
-            f"SEARCH: Fetching '{title}' (detected as {content_type.value}) "
-            f"trying providers in order: {', '.join(providers)}"
-        )
-
-        # Iterate providers sequentially, stop at first success
-        for provider in providers:
-            try:
-                result = self._search_and_format(provider, search_title, year)
-                if result:
-                    # Clean and validate the metadata before caching
-                    result = self._clean_metadata(result, extracted)
-                    result["_provider"] = provider  # already set, but ensure
-
-                    logger.info(
-                        "RESULT: Matched %s | %s (%s) | poster=%s backdrop=%s runtime=%s overview=%d chars",
-                        provider,
-                        result.get("title"),
-                        result.get("external_id"),
-                        bool(result.get("poster")),
-                        bool(result.get("backdrop")),
-                        result.get("runtime"),
-                        len(result.get("overview") or ""),
-                    )
-
-                    # Cache it (upsert by telegram_file_id if provided)
-                    try:
-                        if telegram_file_id:
-                            result["telegram_file_id"] = telegram_file_id
-                        logger.info("SAVE: Caching metadata id=%s title=%s", result.get("external_id"), result.get("title"))
-                        self.save_metadata_fn(result, telegram_file_id=telegram_file_id)
-                        logger.info("SAVE: Metadata cached successfully (updated_at will be set automatically).")
-                    except Exception as e:
-                        logger.exception(f"CACHE: Failed to cache metadata: {e}")
-
-                    return result
-                else:
-                    logger.debug(f"SEARCH: Provider {provider} returned no result for '{search_title}'")
-            except Exception as e:
-                logger.warning(f"SEARCH: Provider {provider} failed for '{search_title}': {e}")
-                # Log full traceback for debugging
-                logger.debug(traceback.format_exc())
-                continue
-
-        # If we reach here, no provider succeeded
-        logger.warning(f"SEARCH: No provider returned data for '{search_title}'")
-        return None
-
-    # ---------- Main entry point ----------
-    def process_caption(
+    # ---------- Synchronous core processing ----------
+    def _sync_process(
         self,
         caption: str,
         filename: Optional[str] = None,
         telegram_file_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Main entry point: process a Telegram caption (and optional filename)
-        and return metadata.
-
-        Args:
-            caption: The raw caption text.
-            filename: Optional filename (e.g., from a torrent or file name)
-                      to improve extraction.
-            telegram_file_id: Optional unique ID from Telegram for cache upsert.
-
-        Returns:
-            Optional[Dict[str, Any]]: The metadata in the common schema,
-                                      or None if not found.
+        Synchronous implementation of the metadata pipeline.
+        This is run inside a thread to avoid blocking the async loop.
         """
         # ---- UPLOAD START ----
         logger.info("=" * 60)
         logger.info("UPLOAD START")
         if filename:
             search_text = f"{filename} {caption}".strip()
-            logger.info("RAW (filename + caption): %s", search_text[:200])  # truncate for readability
+            logger.info("RAW (filename + caption): %s", search_text[:200])
         else:
             search_text = caption
             logger.info("RAW (caption): %s", search_text[:200])
@@ -505,9 +383,6 @@ class Manager:
                         logger.debug(f"Extraction succeeded with variant #{idx}: {variant[:50]}...")
                         break
                 elif isinstance(candidate, dict):
-                    # If the extractor returns a dict, convert to ExtractedContent
-                    # This is a safety net; the default extractor returns ExtractedContent.
-                    # But we handle it gracefully.
                     if candidate.get("title"):
                         extracted = ExtractedContent(
                             title=candidate.get("title"),
@@ -549,24 +424,22 @@ class Manager:
         # Step 3: Detect content type (will also parse episode/season and subtype)
         try:
             content_type = self.detector_fn(extracted)
-            # Store type on extracted for scoring
             extracted.content_type = content_type
             logger.info("TYPE: %s", content_type.value)
             if hasattr(extracted, 'subtype') and extracted.subtype:
                 logger.info("SUBTYPE: %s", extracted.subtype)
         except Exception:
             logger.exception("STAGE: DETECTED -> Detection failed, falling back to UNKNOWN")
-            # Fallback to UNKNOWN
             content_type = ContentType.UNKNOWN
             extracted.content_type = content_type
             logger.info("TYPE: %s", content_type.value)
 
         # Step 4: Check cache
-        # Try by telegram_file_id first if provided
         cache_hit = False
+        # Try by telegram_file_id first if provided
         if telegram_file_id and self.find_by_external_id_fn:
             try:
-                cached = self.find_by_external_id_fn(telegram_file_id)
+                cached = self.find_by_external_id_fn(telegram_file_id, "tmdb")
                 if cached:
                     logger.info("CACHE HIT (by telegram_file_id): %s", telegram_file_id)
                     cache_hit = True
@@ -596,17 +469,102 @@ class Manager:
                 logger.warning(f"STAGE: CACHE -> Lookup by title failed: {e}, proceeding with fetch")
 
         # Step 5: Fetch from providers (sequential, stop on success)
-        metadata = self._fetch_and_cache(extracted, content_type, telegram_file_id)
+        # ---- Fetch and cache ----
+        title = extracted.title
+        year = extracted.year
 
-        if metadata:
-            logger.info("UPLOAD COMPLETE (success)")
-            logger.info("=" * 60)
-            return metadata
+        # Normalize title for provider searches
+        search_title = clean_text(title)
+        if not search_title:
+            logger.warning(f"Title became empty after normalization, using original '{title}'")
+            search_title = title
         else:
-            logger.warning("STAGE: RESULT -> No metadata found for '%s' after all attempts", extracted.title)
-            logger.info("UPLOAD COMPLETE (failure)")
-            logger.info("=" * 60)
-            return None
+            logger.debug(f"Normalized title for search: '{search_title}' (original: '{title}')")
+
+        # Provider selection
+        if content_type == ContentType.MOVIE:
+            providers = ["tmdb_movie"]
+        else:
+            providers = ["tmdb_movie", "tmdb_tv", "tvmaze", "anilist", "jikan"]
+
+        logger.info(
+            f"SEARCH: Fetching '{title}' (detected as {content_type.value}) "
+            f"trying providers in order: {', '.join(providers)}"
+        )
+
+        for provider in providers:
+            try:
+                result = self._search_and_format(provider, search_title, year)
+                if result:
+                    # Clean and validate the metadata before caching
+                    result = self._clean_metadata(result, extracted)
+                    result["_provider"] = provider
+
+                    logger.info(
+                        "RESULT: Matched %s | %s (%s) | poster=%s backdrop=%s runtime=%s overview=%d chars",
+                        provider,
+                        result.get("title"),
+                        result.get("external_id"),
+                        bool(result.get("poster")),
+                        bool(result.get("backdrop")),
+                        result.get("runtime"),
+                        len(result.get("overview") or ""),
+                    )
+
+                    # Cache it (upsert by telegram_file_id if provided)
+                    try:
+                        logger.info("SAVE: Caching metadata id=%s title=%s", result.get("external_id"), result.get("title"))
+                        self.save_metadata_fn(result, telegram_file_id=telegram_file_id)
+                        logger.info("SAVE: Metadata cached successfully.")
+                    except Exception as e:
+                        logger.exception(f"CACHE: Failed to cache metadata: {e}")
+
+                    logger.info("UPLOAD COMPLETE (success)")
+                    logger.info("=" * 60)
+                    return result
+                else:
+                    logger.debug(f"SEARCH: Provider {provider} returned no result for '{search_title}'")
+            except Exception as e:
+                logger.warning(f"SEARCH: Provider {provider} failed for '{search_title}': {e}")
+                logger.debug(traceback.format_exc())
+                continue
+
+        # If we reach here, no provider succeeded
+        logger.warning(f"SEARCH: No provider returned data for '{search_title}'")
+        logger.info("UPLOAD COMPLETE (failure)")
+        logger.info("=" * 60)
+        return None
+
+    # ---------- Async entry point ----------
+    async def process_caption(
+        self,
+        caption: str,
+        filename: Optional[str] = None,
+        telegram_file_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Main entry point (async): process a Telegram caption (and optional filename)
+        and return metadata.
+
+        All blocking I/O is offloaded to a thread pool via asyncio.to_thread.
+
+        Args:
+            caption: The raw caption text.
+            filename: Optional filename (e.g., from a torrent or file name)
+                      to improve extraction.
+            telegram_file_id: Optional unique ID from Telegram for cache upsert.
+
+        Returns:
+            Optional[Dict[str, Any]]: The metadata in the common schema,
+                                      or None if not found.
+        """
+        # Run the synchronous processing in a thread to avoid blocking the event loop.
+        return await asyncio.to_thread(
+            self._sync_process,
+            caption,
+            filename,
+            telegram_file_id,
+        )
 
 
 # ------------------- Convenience function -------------------
@@ -620,23 +578,24 @@ def get_manager() -> Manager:
     return Manager()
 
 
-# ------------------- Example usage -------------------
+# ------------------- Example usage (sync) -------------------
 if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     # Example caption and filename
     caption = "🔥 Pushpa 2 (2024) 1080p WEB-DL Hindi + Telugu"
-    filename = "Pushpa.2.The.Rule.2024.1080p.mkv"   # optional
+    filename = "Pushpa.2.The.Rule.2024.1080p.mkv"
 
-    # Create manager (ensure all providers are configured)
+    # Create manager
     manager = get_manager()
 
-    # Process with both caption and filename
-    result = manager.process_caption(caption, filename=filename)
+    # For testing, we can call the sync method directly (or run async)
+    # Using async is recommended in production.
+    import asyncio
+    result = asyncio.run(manager.process_caption(caption, filename=filename))
 
     if result:
         print("Result:", result)
     else:
         print("No metadata found.")
-        

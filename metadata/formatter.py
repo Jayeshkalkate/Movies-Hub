@@ -31,31 +31,16 @@ from typing import Dict, Any, List, Optional, Union, Callable
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "format_tmdb",
+    "format_tvmaze",
+    "format_jikan",
+    "format_anilist",
+    "format_metadata",
+]
+
 
 # ------------------- Helper Functions -------------------
-
-def _safe_get(data: Dict[str, Any], *keys: str, default: Any = None) -> Any:
-    """
-    Safely navigate nested dictionaries with fallback.
-
-    Args:
-        data: Dictionary to traverse.
-        *keys: Sequence of keys to access.
-        default: Default value if any key is missing or value is None.
-
-    Returns:
-        The value at the nested path, or default if not found.
-    """
-    current = data
-    for key in keys:
-        if isinstance(current, dict):
-            current = current.get(key)
-            if current is None:
-                return default
-        else:
-            return default
-    return current if current is not None else default
-
 
 def _build_genre_list(genres_data: Any) -> List[str]:
     """
@@ -195,7 +180,11 @@ def format_tmdb(item: Dict[str, Any], content_type: str = "movie") -> Dict[str, 
         episode_count = None
         season_count = None
     else:
-        runtime = None  # TV shows have per-episode runtime, not overall
+        # TV shows: try to get average episode runtime if available
+        runtime = None
+        episode_run_time = item.get("episode_run_time", [])
+        if episode_run_time and isinstance(episode_run_time, list) and len(episode_run_time) > 0:
+            runtime = episode_run_time[0]  # average
         season_count = item.get("number_of_seasons")
         episode_count = item.get("number_of_episodes")
 
@@ -592,4 +581,3 @@ if __name__ == "__main__":
     print("\nAuto-dispatch test:")
     auto = format_metadata("tmdb", sample_tmdb_movie | {"media_type": "movie"})
     print(json.dumps(auto, indent=2))
-    

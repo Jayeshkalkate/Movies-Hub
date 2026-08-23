@@ -18,9 +18,33 @@ from enum import Enum
 from typing import Optional, Set, List, Tuple
 from dataclasses import dataclass, field
 
-# Configure logging (will be overridden by caller if needed)
+# Configure logging
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+__all__ = [
+    "ContentType",
+    "ExtractedContent",
+    "detect",
+    "detect_languages",
+    "detect_quality",
+    "detect_anime_subtype",
+    "parse_season_episode",
+]
+
+
+# ---------- Data Classes ----------
+@dataclass
+class ExtractedContent:
+    """Structured metadata extracted from a text string."""
+    title: Optional[str] = None
+    year: Optional[int] = None
+    season: Optional[int] = None
+    episode: Optional[int] = None
+    quality: Optional[str] = None
+    languages: Optional[List[str]] = None
+    subtype: Optional[str] = None          # OVA, ONA, Movie, Special, etc.
+    content_type: Optional['ContentType'] = None
 
 
 class ContentType(Enum):
@@ -30,19 +54,11 @@ class ContentType(Enum):
     UNKNOWN = "unknown"
 
 
-# ---------- ExtractedContent (if not imported) ----------
-try:
-    from metadata.extractor import ExtractedContent
-except ImportError:
-    @dataclass
-    class ExtractedContent:
-        title: Optional[str] = None
-        year: Optional[int] = None
-        season: Optional[int] = None
-        episode: Optional[int] = None
-        quality: Optional[str] = None
-        languages: Optional[List[str]] = None
-        subtype: Optional[str] = None          # OVA, ONA, Movie, etc.
+# ---------- Anime Keywords (global) ----------
+ANIME_KEYWORDS = {
+    "anime", "ova", "ona", "movie", "film", "special",
+    "season", "episode", "series", "tv", "show"
+}
 
 
 # ---------- Anime data ----------
@@ -83,6 +99,7 @@ DEFAULT_ANIME_TITLES = {
     "kingdom", "ragna crimson", "kaiju no. 8", "dandadan"
 }
 
+
 def _load_anime_list() -> Set[str]:
     """Load anime titles from JSON file or fallback to built‑in set."""
     json_path = os.path.join(os.path.dirname(__file__), "anime_titles.json")
@@ -100,6 +117,7 @@ def _load_anime_list() -> Set[str]:
     except Exception as e:
         logger.warning(f"Failed to load anime_titles.json: {e}")
     return DEFAULT_ANIME_TITLES.copy()
+
 
 ANIME_TITLES = _load_anime_list()
 if not ANIME_TITLES:
@@ -122,6 +140,7 @@ DEFAULT_TV_TITLES = {
     "the handmaid's tale", "the expanse", "the peripheral", "altered carbon"
 }
 
+
 def _load_tv_list() -> Set[str]:
     """Load TV titles from JSON file or fallback to built‑in set."""
     json_path = os.path.join(os.path.dirname(__file__), "tv_titles.json")
@@ -140,82 +159,24 @@ def _load_tv_list() -> Set[str]:
         logger.warning(f"Failed to load tv_titles.json: {e}")
     return DEFAULT_TV_TITLES.copy()
 
+
 TV_TITLES = _load_tv_list()
 if not TV_TITLES:
     TV_TITLES = set()
 
 
-# ---------- Episode/season parsing ----------
-EPISODE_PATTERNS = [
-    # S02E08, S2E8
-    re.compile(r'(?i)[Ss](\d{1,2})[Ee](\d{1,3})'),
-    # Season 2 Episode 8, season 02 episode 08
-    re.compile(r'(?i)season\s*(\d{1,2})\s*(?:episode|ep)\s*(\d{1,3})'),
-    # E120, Ep120, Episode-12
-    re.compile(r'(?i)(?:[Ee]p(?:isode)?)[\s\-]?(\d{1,4})'),
-    # Standalone season: Season 2, S02, S2 (but avoid matching S02E08 already handled)
-    re.compile(r'(?i)season\s*(\d{1,2})'),
-    re.compile(r'(?i)[Ss](\d{1,2})(?![Ee])'),
-    # Volume/Chapter (uncommon)
-    re.compile(r'(?i)(?:vol|volume|chapter)[\s\-]?(\d{1,4})'),
-]
-
-def parse_episode_info(text: str) -> Tuple[Optional[int], Optional[int]]:
-    """
-    Scan text for season/episode patterns.
-    Returns (season, episode) or (None, None).
-    """
-    if not text:
-        return None, None
-    for pat in EPISODE_PATTERNS:
-        match = pat.search(text)
-        if match:
-            groups = match.groups()
-            if len(groups) == 2:
-                try:
-                    season = int(groups[0])
-                    episode = int(groups[1])
-                    return season, episode
-                except ValueError:
-                    continue
-            elif len(groups) == 1:
-                try:
-                    # Could be season or episode depending on pattern
-                    # For standalone season patterns, we return (season, None)
-                    # For episode-only patterns, we return (None, episode)
-                    # We need to distinguish: we can check if pattern is season pattern
-                    # We'll use a heuristic: if the matched pattern contains "season" or "S" (without E), it's season
-                    # However, we can't easily tell from match object; we'll check the pattern string
-                    # Instead, we use the fact that the pattern for standalone season is either "season" or "S" without "E"
-                    # Let's examine the match: we can get the pattern from the compiled regex, but it's not straightforward.
-                    # Simpler: we can try to interpret as season if the matched text contains "season" or "s" and no "e"
-                    # But "S02" could be ambiguous. We'll prioritize episode-only patterns (they are earlier) and then season-only.
-                    # The current order: after combined patterns, we have season-only patterns.
-                    # But we also have episode-only pattern E120 etc. That comes before season-only.
-                    # So if we hit episode-only, we return (None, episode).
-                    # If we hit season-only, we return (season, None).
-                    # However, we cannot know which pattern matched. We'll use a crude method:
-                    # For the "E" and "Episode" patterns, they are episode-only; for season patterns they are season-only.
-                    # We can check the pattern's string, but it's messy.
-                    # Better: we'll restructure: we'll have separate functions for episode and season.
-                    pass
-                except ValueError:
-                    continue
-    # Fallback: if none matched, return None
-    return None, None
-
-
-# Improved parse function that distinguishes season and episode
+# ---------- Season/Episode Parsing ----------
 def parse_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
     """
-    Enhanced parsing: returns (season, episode) with season-only or episode-only detection.
+    Parse season and episode numbers from a text string.
+
+    Returns:
+        Tuple[Optional[int], Optional[int]]: (season, episode). Either may be None.
     """
     if not text:
         return None, None
 
-    text_lower = text.lower()
-
-    # First try combined patterns
+    # Combined patterns (S02E08, Season 2 Episode 8)
     combined_pats = [
         re.compile(r'(?i)[Ss](\d{1,2})[Ee](\d{1,3})'),
         re.compile(r'(?i)season\s*(\d{1,2})\s*(?:episode|ep)\s*(\d{1,3})'),
@@ -228,7 +189,7 @@ def parse_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
             except ValueError:
                 continue
 
-    # Episode-only patterns
+    # Episode-only patterns (E120, Ep120, Episode-12)
     ep_pats = [
         re.compile(r'(?i)(?:[Ee]p(?:isode)?)[\s\-]?(\d{1,4})'),
     ]
@@ -240,7 +201,7 @@ def parse_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
             except ValueError:
                 continue
 
-    # Season-only patterns (standalone)
+    # Season-only patterns (Season 2, S02, S2)
     season_pats = [
         re.compile(r'(?i)season\s*(\d{1,2})'),
         re.compile(r'(?i)[Ss](\d{1,2})(?![Ee])'),  # S followed by digits, not followed by E
@@ -265,11 +226,7 @@ def parse_season_episode(text: str) -> Tuple[Optional[int], Optional[int]]:
     return None, None
 
 
-# Override original parse_episode_info to use enhanced version
-parse_episode_info = parse_season_episode
-
-
-# ---------- Language detection ----------
+# ---------- Language Detection ----------
 LANGUAGE_KEYWORDS = {
     'hindi': 'hi',
     'tamil': 'ta',
@@ -295,14 +252,23 @@ LANGUAGE_KEYWORDS = {
     'subbed': 'sub',
 }
 
+
 def detect_languages(text: str) -> List[str]:
+    """
+    Detect language codes present in the text.
+
+    Returns:
+        List[str]: Sorted list of detected language codes.
+    """
     if not text:
         return []
     text_lower = text.lower()
     found = set()
+    # Check each keyword
     for keyword, code in LANGUAGE_KEYWORDS.items():
         if keyword in text_lower:
             found.add(code)
+    # Also check for separated phrases like "Hindi + English"
     for sep in ['+', '&', ',']:
         if sep in text_lower:
             parts = text_lower.split(sep)
@@ -311,10 +277,10 @@ def detect_languages(text: str) -> List[str]:
                 for keyword, code in LANGUAGE_KEYWORDS.items():
                     if keyword in part:
                         found.add(code)
-    return list(found)
+    return sorted(found)
 
 
-# ---------- Subtype detection ----------
+# ---------- Subtype Detection ----------
 ANIME_SUBTYPE_KEYWORDS = {
     'ova': 'OVA',
     'ona': 'ONA',
@@ -328,23 +294,23 @@ ANIME_SUBTYPE_KEYWORDS = {
     'part iii': 'Part 3',
     'part iv': 'Part 4',
     'part v': 'Part 5',
-    # Additional variants
     'final season part 2': 'Final Season',
     'final season part ii': 'Final Season',
 }
 
+
 def detect_anime_subtype(title: str) -> Optional[str]:
+    """Detect anime subtype (OVA, ONA, Movie, Special, etc.) from title."""
     if not title:
         return None
     title_lower = title.lower()
-    # Check exact phrases first
     for key, subtype in ANIME_SUBTYPE_KEYWORDS.items():
         if key in title_lower:
             return subtype
     return None
 
 
-# ---------- Quality detection ----------
+# ---------- Quality Detection ----------
 QUALITY_PATTERNS = [
     re.compile(r'\b(1080p|1080|full hd|fhd)\b', re.IGNORECASE),
     re.compile(r'\b(720p|720|hd ready)\b', re.IGNORECASE),
@@ -352,7 +318,9 @@ QUALITY_PATTERNS = [
     re.compile(r'\b(2160p|4k|uhd)\b', re.IGNORECASE),
 ]
 
+
 def detect_quality(text: str) -> Optional[str]:
+    """Detect video quality from text."""
     if not text:
         return None
     for pat in QUALITY_PATTERNS:
@@ -362,12 +330,13 @@ def detect_quality(text: str) -> Optional[str]:
     return None
 
 
-# ---------- TV keywords ----------
+# ---------- TV Keywords ----------
 TV_KEYWORDS = {
     "tv series", "tv show", "television series", "series", "show",
     "complete series", "full series", "all seasons", "season pack",
     "box set"
 }
+
 
 def is_tv_keyword_in_title(title: str) -> bool:
     """Return True if the title contains any TV keyword."""
@@ -380,11 +349,17 @@ def is_tv_keyword_in_title(title: str) -> bool:
     return False
 
 
-# ---------- Main detection function ----------
+# ---------- Main Detection Function ----------
 def detect(extracted: ExtractedContent) -> ContentType:
     """
     Determine content type and populate extracted.subtype, .languages,
     .quality, and season/episode if missing.
+
+    Args:
+        extracted: ExtractedContent instance (will be updated in place).
+
+    Returns:
+        ContentType: The detected content type.
     """
     if extracted.title is None:
         logger.debug("Title is None, cannot classify.")
@@ -394,31 +369,30 @@ def detect(extracted: ExtractedContent) -> ContentType:
     title_lower = title.lower()
     logger.debug(f"Classifying title: '{title}'")
 
-    # ----- 1. Parse season/episode if not already present -----
+    # 1. Parse season/episode if not already present
     if extracted.season is None and extracted.episode is None:
-        season, episode = parse_episode_info(title)
+        season, episode = parse_season_episode(title)
         if season is not None or episode is not None:
             extracted.season = season
             extracted.episode = episode
             logger.debug(f"Parsed season={season}, episode={episode} from title")
 
-    # ----- 2. Detect quality if not already present -----
+    # 2. Detect quality if not already present
     if not extracted.quality:
         quality = detect_quality(title)
         if quality:
             extracted.quality = quality
             logger.debug(f"Detected quality: {quality}")
 
-    # ----- 3. Detect languages from title if not already set -----
+    # 3. Detect languages from title if not already set
     if not extracted.languages:
         langs = detect_languages(title)
         if langs:
             extracted.languages = langs
             logger.debug(f"Detected languages from title: {langs}")
 
-    # ----- 4. Season/episode present: TV or Anime -----
+    # 4. Season/episode present: TV or Anime
     if extracted.season is not None or extracted.episode is not None:
-        # Check if anime
         is_anime = (title_lower in ANIME_TITLES or any(kw in title_lower for kw in ANIME_KEYWORDS))
         if is_anime:
             subtype = detect_anime_subtype(title)
@@ -426,11 +400,10 @@ def detect(extracted: ExtractedContent) -> ContentType:
             logger.info(f"Anime with season/ep: '{title}', subtype={subtype}")
             return ContentType.ANIME
         else:
-            # If it has a season/episode, it's TV (unless anime)
             logger.info(f"TV show with season/ep: '{title}'")
             return ContentType.TV
 
-    # ----- 5. Anime detection (no season/ep) -----
+    # 5. Anime detection (no season/ep)
     if title_lower in ANIME_TITLES:
         extracted.subtype = detect_anime_subtype(title)
         logger.info(f"Anime (exact match): '{title}', subtype={extracted.subtype}")
@@ -442,36 +415,31 @@ def detect(extracted: ExtractedContent) -> ContentType:
             logger.info(f"Anime (keyword '{keyword}'): '{title}', subtype={extracted.subtype}")
             return ContentType.ANIME
 
-    # ----- 6. TV detection (no season/ep) -----
-    # Check exact title in TV list
+    # 6. TV detection (no season/ep)
     if title_lower in TV_TITLES:
         logger.info(f"TV show (exact match): '{title}'")
         return ContentType.TV
 
-    # Check for TV keywords
     if is_tv_keyword_in_title(title):
         logger.info(f"TV show (keyword): '{title}'")
         return ContentType.TV
 
-    # ----- 7. Movie detection -----
-    # If year is present (and not too far in future), it's likely a movie
+    # 7. Movie detection
     if extracted.year is not None and 1900 <= extracted.year <= 2030:
         logger.info(f"Movie (year present): '{title}'")
         return ContentType.MOVIE
 
-    # Look for 'movie' or 'film' in title
     if re.search(r'\b(?:movie|film)\b', title_lower):
         logger.info(f"Movie (keyword): '{title}'")
         return ContentType.MOVIE
 
-    # ----- 8. Fallback: still movie (legacy) but log warning -----
+    # 8. Fallback: movie (legacy)
     logger.warning(f"Fallback to MOVIE for unknown content: '{title}'")
     return ContentType.MOVIE
 
 
-# ---------- Example usage and test ----------
+# ---------- Example Usage and Test ----------
 if __name__ == "__main__":
-    # Configure logging for test
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     test_cases = [
@@ -483,15 +451,15 @@ if __name__ == "__main__":
         ("The Office S05E12", None, ContentType.TV, None, 5, 12),
         ("Inception 2010", 2010, ContentType.MOVIE, None, None, None),
         ("Spy x Family Episode 24", None, ContentType.ANIME, None, None, 24),
-        ("Dragon Ball Z - Season 3", None, ContentType.ANIME, None, 3, None),  # standalone season
+        ("Dragon Ball Z - Season 3", None, ContentType.ANIME, None, 3, None),
         ("Unknown Movie 2023", 2023, ContentType.MOVIE, None, None, None),
         ("One Piece (2023) 1080p Hindi + English", None, ContentType.ANIME, None, None, None),
-        ("The Office", None, ContentType.TV, None, None, None),  # now TV
+        ("The Office", None, ContentType.TV, None, None, None),
         ("Breaking Bad Complete Series", None, ContentType.TV, None, None, None),
-        ("Stranger Things Season 2", None, ContentType.TV, None, 2, None),  # standalone season
+        ("Stranger Things Season 2", None, ContentType.TV, None, 2, None),
         ("The Bear", None, ContentType.TV, None, None, None),
         ("Dune 2021", 2021, ContentType.MOVIE, None, None, None),
-        ("The Matrix", None, ContentType.MOVIE, None, None, None),  # falls back to movie
+        ("The Matrix", None, ContentType.MOVIE, None, None, None),
     ]
 
     for item in test_cases:
@@ -509,4 +477,3 @@ if __name__ == "__main__":
             assert content.episode == exp_ep, f"Expected episode {exp_ep}, got {content.episode}"
         print("  OK")
     print("All tests passed!")
-    

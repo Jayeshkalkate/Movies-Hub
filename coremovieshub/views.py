@@ -1063,4 +1063,3 @@ def join_channel(
             "movie": movie
         }
     )
-    
